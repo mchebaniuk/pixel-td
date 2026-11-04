@@ -68,9 +68,9 @@
   #nextwave .nw-wait { font-size: 11px; font-weight: 500; color: var(--muted); }
   .unit, .spell { position: relative; }
   /* звёзды на финальном экране */
-  .stars { display: flex; gap: 8px; font-size: 34px; line-height: 1; }
-  .stars span { color: #3a3f55; text-shadow: 2px 2px 0 var(--wood-dk); }
-  .stars span.on { color: var(--gold); }
+  .stars { display: flex; gap: 14px; font-size: clamp(48px, 7vw, 72px); line-height: 1; margin: 4px 0; }
+  .stars span { color: #2e3348; text-shadow: 0 4px 0 #11141e, 3px 3px 0 #0a0c12; }
+  .stars span.on { color: #ffd65a; text-shadow: 0 4px 0 #6a3e0c, 3px 3px 0 #2a170a, 0 0 18px rgba(255,214,90,0.55); }
   .spacer { flex: 1; }
 
   button {
@@ -165,7 +165,7 @@
   /* баннер волны */
   #banner {
     position: absolute; left: 50%; top: 11%; transform: translateX(-50%); z-index: 4; pointer-events: none;
-    padding: 12px 34px 12px; line-height: 1.25; text-align: center; white-space: nowrap;
+    padding: 12px 38px 12px; line-height: 1.25; text-align: center; white-space: nowrap; max-width: calc(100% - 24px); box-sizing: border-box;
     background: linear-gradient(180deg, rgba(34,28,20,0.94), rgba(14,12,10,0.94));
     border: 3px solid #b8862a; border-radius: 4px;
     box-shadow: 0 0 0 2px var(--wood-dk), inset 0 0 0 2px #4e3119, inset 0 2px 0 3px rgba(255,220,130,0.12), 0 8px 24px rgba(0,0,0,0.55);
@@ -177,8 +177,13 @@
   #banner::before, #banner::after { content: ''; position: absolute; top: 50%; width: 10px; height: 10px; margin-top: -5px;
     background: #ffd65a; transform: rotate(45deg); box-shadow: 0 0 0 2px #2a170a, 0 0 10px rgba(255,214,90,0.6); }
   #banner::before { left: 12px; } #banner::after { right: 12px; }
-  #banner small { display: block; margin-top: 8px; font-family: var(--font); font-size: 15px; font-weight: 500; letter-spacing: 0.02em;
-    color: var(--ink); text-shadow: 1px 1px 0 #000; }
+  #banner small { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; font-family: var(--font); font-size: 15px; font-weight: 500;
+    letter-spacing: 0.02em; color: var(--ink); text-shadow: 1px 1px 0 #000; white-space: nowrap; }
+  #banner small .bn-pic { width: 26px; height: 26px; display: grid; place-items: end center; overflow: hidden; border-radius: 3px;
+    background: radial-gradient(ellipse at 50% 70%, #3a4668 0%, #161b29 75%); border: 2px solid #0e1119; }
+  #banner small .bn-pic img { height: 24px; max-width: 24px; object-fit: contain; image-rendering: pixelated; }
+  #banner small b { color: #fff3c8; font-weight: 700; }
+  #banner small .bn-time { font-family: var(--pixel); font-size: 10px; color: #1a1206; background: var(--gold); padding: 3px 6px; border-radius: 3px; text-shadow: none; box-shadow: inset 0 -2px 0 #9a6b1c; }
   #banner.boss { color: #ff7a5a; border-color: #c0473b; text-shadow: 0 3px 0 #5a1610, 2px 2px 0 #1a0806, -2px -2px 0 #1a0806, 2px -2px 0 #1a0806, -2px 2px 0 #1a0806; }
   #banner.boss::before, #banner.boss::after { background: #ff7a5a; box-shadow: 0 0 0 2px #1a0806, 0 0 10px rgba(255,90,60,0.7); }
   #banner.ok { color: #a8f07a; border-color: #5aa84a; text-shadow: 0 3px 0 #1f5a14, 2px 2px 0 #0a1a06, -2px -2px 0 #0a1a06, 2px -2px 0 #0a1a06, -2px 2px 0 #0a1a06; }
@@ -204,6 +209,17 @@
   .card .roster img { height: 48px; image-rendering: pixelated; }
   .card button { align-self: center; font-size: 20px; padding: 8px 34px; min-height: 44px; letter-spacing: 0.03em; }
 
+  @media (max-width: 1150px) {
+    #top { gap: 6px; }
+    .pill { padding: 0 8px; font-size: 12px; }
+    #nextwave .nw-tag, #nextwave .nw-lbl { display: none; }
+    #wave .wv-name { display: none; }
+    .slots, .spells { gap: 6px; }
+    .unit { flex: 1 1 0; min-width: 0; width: auto; max-width: 100px; }
+    .unit .air { font-size: 9px; padding: 2px 4px; }
+    .spell { flex: 1 1 0; min-width: 0; width: auto; max-width: 76px; }
+    .spell span:not(.key) { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  }
   @media (max-width: 760px) {
     #bottom { grid-template-columns: 1fr 1fr; row-gap: 18px; }
     .unit { width: 84px; } .unit .pic { width: 56px; height: 52px; } .unit img { height: 46px; }

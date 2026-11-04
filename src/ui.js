@@ -74,11 +74,11 @@ function refreshHud() {
   $('lives').textContent = `${Math.max(0, game.lives)}/${C.START_LIVES}`;
   const wi = game.waveIdx;
   if (wi < 0) $('wave').innerHTML = `Волна <b>0/${C.WAVES.length}</b>`;
-  else $('wave').innerHTML = `Волна <b>${wi + 1}/${C.WAVES.length}</b> · ${C.ENEMIES[C.WAVES[wi].type].name}`;
+  else $('wave').innerHTML = `Волна <b>${wi + 1}/${C.WAVES.length}</b><span class="wv-name"> · ${C.ENEMIES[C.WAVES[wi].type].name}</span>`;
   const next = $('next');
   next.disabled = !game.canCallWave() || game.phase === 'prep';
   refreshNextWave();
-  if (game.phase === 'break') next.textContent = `Вызвать сейчас ▸ +${C.EARLY_BONUS}`;
+  if (game.phase === 'break') next.textContent = innerWidth < 1150 ? `Сейчас +${C.EARLY_BONUS}` : `Вызвать сейчас ▸ +${C.EARLY_BONUS}`;
   else if (game.phase === 'final') next.textContent = 'Последняя волна';
   else next.textContent = 'Волна идёт';
   $('speed').textContent = '×' + game.speed;
@@ -214,7 +214,7 @@ function showBanner(d) {
   const old = stage.querySelector('#banner'); if (old) old.remove();
   const b = document.createElement('div');
   b.id = 'banner'; if (d.boss) b.className = 'boss'; if (d.cleared) b.className = 'ok';
-  b.innerHTML = d.cleared ? `Волна ${d.idx + 1} отбита!<small>Дальше: ${d.next} — через ${d.wait} с</small>`
+  b.innerHTML = d.cleared ? `Волна ${d.idx + 1} отбита!<small>Дальше <span class="bn-pic">${portrait(d.type)}</span><b>${d.next}</b><span class="bn-time">${d.wait} с</span></small>`
     : d.rage ? 'Тролль в ярости!<small>Он ускорился — добивай его</small>'
     : `Волна ${d.idx + 1}: ${d.name}<small>${d.boss ? 'Босс идёт к замку!' : 'Отряд ×' + d.count + ' идёт колонной'}</small>`;
   stage.append(b);
@@ -242,6 +242,7 @@ function showStart() {
 }
 function showEnd(r) {
   game.selected = -1; pick = null;
+  stage.querySelector('#banner')?.remove(); // табличка волны не должна просвечивать за итогами
   const mm = Math.floor(r.time / 60), ss = String(Math.floor(r.time % 60)).padStart(2, '0');
   const stars = !r.win ? 0 : r.lives >= C.START_LIVES - 3 ? 3 : r.lives >= C.START_LIVES / 2 ? 2 : 1;
   overlay.hidden = false;

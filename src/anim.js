@@ -95,19 +95,18 @@ export function unitRig(unit, t, atk, windup, seed) {
         { r: [0, 0, 1, 0.75], dy: breath * 0.35 - 0.4 * kick }, // корпус вместе с луком целиком
       ] };
     }
-    case 'cyclops': { // поднимает валун над головой и швыряет его вперёд всем корпусом
+    case 'cyclops': { // поднимает валун над головой настоящими руками с картинки и швыряет его корпусом
       const up = ease(windup), hit = atk;
-      // угол рук от плеча: 0 — висят вниз, −2.7 — подняты над головой (через перёд); на броске идут вперёд и вниз
+      // угол рук от плеча: 0 — как на картинке, −2.7 — подняты над головой (через перёд); на броске идут вперёд и вниз
       const arm = -2.7 * Math.max(up, hit * hit * 0.9);
-      const active = arm < -0.12;                     // в движении руки рисуются заново целиком (game.js, drawCyclopsArm)
       const bodyDy = breath * 0.45 + 1.2 * up - 0.8 * hit;
-      const parts = [
-        { r: [0, 0.62, 1, 1], sy: 1 - 0.06 * up, pivot: 'top' },  // ноги приседают на замахе
-        { r: [0.2, 0, 0.8, 0.64], dy: bodyDy },                   // голова и торс
-      ];
-      if (!active) parts.push({ r: [0, 0.18, 0.2, 0.62], dy: bodyDy }, { r: [0.8, 0.18, 1, 0.62], dy: breath * 0.45 }); // руки из картинки
-      return { o: { rot: -0.12 * up + 0.22 * hit + Math.sin(t * 0.9 + seed) * 0.02, dx: -0.8 * up + 2 * hit }, parts,
-        arms: { active, far: arm * 1.06, near: arm, bend: -0.7 * Math.max(up, hit * 0.6), dy: bodyDy } };
+      const near = { r: [0, 0.16, 0.24, 0.64], rot: arm, at: [0.17, 0.24], dy: bodyDy };          // ближняя рука
+      const far = { r: [0.76, 0.16, 1, 0.64], rot: arm * 1.06, at: [0.83, 0.24], dy: bodyDy };   // дальняя рука
+      return { o: { rot: -0.12 * up + 0.22 * hit + Math.sin(t * 0.9 + seed) * 0.02, dx: -0.8 * up + 2 * hit }, parts: [
+        far, near,                                                   // обе руки за туловищем: торс закрывает место крепления
+        { r: [0, 0.62, 1, 1], sy: 1 - 0.06 * up, pivot: 'top' },     // ноги приседают на замахе
+        { r: [0.2, 0, 0.8, 0.64], dy: bodyDy },                      // голова и торс
+      ], arms: { near, far } };
     }
     case 'lich': { // жрец поднимает посох перед лучом и вскидывает его при выстреле; подол колышется
       const lift = 1.2 * ease(windup) + 1.6 * atk;

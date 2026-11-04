@@ -17,7 +17,7 @@ function turnTowards(o, want, dt) {
   } else if (want !== o.shown) { o.turnT = TURN_TIME; o.turnTo = want; }
 }
 const turnScale = o => (o.turnT > 0 ? Math.max(0.12, Math.abs(Math.cos(Math.PI * (1 - o.turnT / TURN_TIME)))) : 1);
-const GATE_FADE = 16; // за сколько единиц пути до конца враг начинает растворяться в проходе ворот
+const GATE_FADE = 4; // у самых ворот враг быстро тает — в этот миг он бьёт в створки
 // обводка улучшенных защитников: 2 уровень — серебро, 3 — золото
 const LEVEL_GLOW = { 2: ['#a8d4ff', 0.45], 3: ['#ffd34a', 0.75] };
 import { FX, line, drawBoulder, cell, pxEllipse } from './fx.js';
@@ -43,7 +43,7 @@ export class Game {
     this.phase = 'prep';          // prep | spawning | break | final | over
     this.spawnLeft = 0; this.spawnT = 0; this.breakT = 0;
     this.enemies = []; this.projectiles = []; this.meteors = []; this.corpses = [];
-    this.burns = []; this.shocks = []; this.gateHit = 0;
+    this.burns = []; this.shocks = []; this.cracks = []; this.gateHit = 0;
     // светлячки над травой: медленно кружат и мерцают
     this.flies = Array.from({ length: 18 }, () => ({ x: 20 + Math.random() * 380, y: 95 + Math.random() * 135, ph: Math.random() * 7, sp: 0.4 + Math.random() * 0.6 }));
     this.towers = SLOTS.map(([x, y], i) => ({ i, x, y, unit: null, level: 0, cd: 0, invested: 0, face: -1, anim: 0 })); // защитники смотрят влево — навстречу врагам
@@ -194,7 +194,7 @@ export class Game {
         if (!this.waveCleared && this.waveIdx >= 0) { // волна отбита — один раз сообщаем интерфейсу (до первой волны — нечего отбивать)
           this.waveCleared = true;
           this.sfx('cleared');
-          this.emit('cleared', { idx: this.waveIdx, next: C.ENEMIES[C.WAVES[this.waveIdx + 1].type].name, wait: C.WAVE_BREAK });
+          this.emit('cleared', { idx: this.waveIdx, type: C.WAVES[this.waveIdx + 1].type, next: C.ENEMIES[C.WAVES[this.waveIdx + 1].type].name, wait: C.WAVE_BREAK });
         }
         this.breakT -= dt;
       } else this.breakT = C.WAVE_BREAK;
@@ -233,7 +233,7 @@ export class Game {
       this.lives -= e.def.lives;
       if (e.def.boss) this.bossLeaked = true;
       this.sfx('leak');
-      this.hitGate();
+      this.hitGate(e.def.lives);
       this.fx.shake = Math.min(3, 1 + e.def.lives / 4);
       this.emit('change');
     }
@@ -262,8 +262,18 @@ export class Game {
     }
   }
 
-  // враг прорвался в замок: в проходе вспыхивает тревожный отсвет
-  hitGate() { this.gateHit = 0.6; }
+  // удар в ворота: створки вздрагивают, появляется трещина, летят щепки и пыль
+  hitGate(lives) {
+    this.gateHit = 0.35;
+    for (let n = 0; n < Math.min(3, lives); n++) {
+      if (this.cracks.length >= 14) break;
+      let x = GATE.x + 3 + Math.random() * (GATE.w - 6), y = GATE.y + 4 + Math.random() * (GATE.h - 8);
+      const pts = [[x, y]];
+      for (let i = 0; i < 3; i++) { x += (Math.random() - 0.5) * 6; y += (Math.random() - 0.3) * 5; pts.push([x, y]); }
+      this.cracks.push(pts);
+    }
+    this.fx.burst(GATE.x + GATE.w / 2, GATE.y + GATE.h - 2, ['#8c7f68', '#a89a80', '#6b4528'], 14, 35, 0.6, 60);
+  }
 
   // павший враг рассыпается на пиксели своей картинки, они осыпаются и тают
   dissolve(c) {
@@ -520,13 +530,14 @@ export class Game {
     ctx.restore();
   }
 
-  // ворота замка открыты: проход нарисован прямо на фоне (paintOpenGate в map.js).
-  // При прорыве врага в глубине прохода на миг вспыхивает тревожный отсвет
-  drawGateAlarm() {
-    if (this.gateHit <= 0) return;
+  // ворота закрыты: при ударе створки на миг темнеют и вздрагивают, трещины остаются
+  drawGateHits() {
     const ctx = this.ctx;
-    ctx.fillStyle = `rgba(255,110,50,${this.gateHit * 0.3})`;
-    pxEllipse(ctx, 436, 118, 6, 3.6);
+    if (this.gateHit > 0) { ctx.fillStyle = `rgba(0,0,0,${this.gateHit * 0.6})`; cell(ctx, GATE.x, GATE.y, GATE.w, GATE.h); }
+    const jolt = this.gateHit > 0 ? Math.round(Math.sin(this.time * 60)) * PIX : 0;
+    for (const pts of this.cracks) for (let i = 1; i < pts.length; i++) {
+      line(ctx, pts[i - 1][0] + jolt, pts[i - 1][1], pts[i][0] + jolt, pts[i][1], '#1a1008', 1);
+    }
   }
 
   // окружение позади объектов: свет факелов, туман, выжженная земля, ворота, ударные волны
@@ -552,7 +563,7 @@ export class Game {
     for (const b of this.burns) {
       ctx.fillStyle = `rgba(40,18,8,${0.35 * Math.min(1, b.t)})`; pxEllipse(ctx, b.x, b.y, b.r, b.r * 0.5);
     }
-    this.drawGateAlarm();
+    this.drawGateHits();
     // ударная волна от кулаков тролля: расходящееся пиксельное кольцо
     for (const s of this.shocks) {
       const k = s.t / 0.5, r = s.r * (0.2 + 0.8 * k), n = Math.floor(r * 1.6);
@@ -597,43 +608,21 @@ export class Game {
     ctx.restore();
   }
 
-  // Руки циклопа в движении: плечо → локоть → кулак, в цвет кожи с тёмным контуром, на пиксельной сетке.
-  // Считаются в координатах фигуры (смотрит вправо), затем — тот же наклон и отражение, что у всей фигуры
-  cyclopsArmPoints(arms, which) {
+  // Руки циклопа — настоящие, с картинки: поворачиваются вокруг плеча (drawRig, rot + at).
+  // Точки считаются в координатах фигуры (смотрит вправо), затем — наклон и отражение всей фигуры
+  armPoint(arm, fx, fy) {
     const { w, h } = size('cyclops');
-    const sh = which === 'near' ? [0.16, 0.24] : [0.84, 0.24];
-    const S = [-w / 2 + sh[0] * w, -h + sh[1] * h + (which === 'near' ? arms.dy : 0)];
-    const a1 = Math.PI / 2 + arms[which], a2 = a1 + arms.bend, L1 = 0.21 * h, L2 = 0.19 * h;
-    const E = [S[0] + Math.cos(a1) * L1, S[1] + Math.sin(a1) * L1];
-    const H = [E[0] + Math.cos(a2) * L2, E[1] + Math.sin(a2) * L2];
-    return { S, E, H, a2 };
+    const ax = -w / 2 + arm.at[0] * w, ay = -h + arm.at[1] * h + (arm.dy || 0);
+    const vx = (fx - arm.at[0]) * w, vy = (fy - arm.at[1]) * h, c = Math.cos(arm.rot), s = Math.sin(arm.rot);
+    return [ax + vx * c - vy * s, ay + vx * s + vy * c];
   }
-  withFigure(t, top, o, fn) {
-    const ctx = this.ctx, f = t.face < 0 ? -1 : 1;
-    ctx.save(); ctx.translate(t.x + (o.dx || 0) * f, top + (o.dy || 0)); ctx.scale(f, 1); if (o.rot) ctx.rotate(o.rot);
-    fn(ctx); ctx.restore();
-  }
-  drawCyclopsArm(t, top, o, arms, which) {
-    const { S, E, H } = this.cyclopsArmPoints(arms, which);
-    // цвета сняты с рук на картинке (с той же ночной тонировкой); дальняя рука в тени
-    const near = which === 'near';
-    const dark = '#24110a', base = near ? '#8c5642' : '#5a3226', shade = '#5a3226', lite = near ? '#b87a5a' : '#8c5642';
-    const seg = (A, B, col, wdt, ox = 0, oy = 0) => line(this.ctx, A[0] + ox, A[1] + oy, B[0] + ox, B[1] + oy, col, wdt);
-    this.withFigure(t, top, o, () => {
-      seg(S, E, dark, 6); seg(E, H, dark, 5);
-      seg(S, E, base, 4); seg(E, H, base, 3);
-      seg(S, E, shade, 1, 0.9, 0.6); seg(E, H, shade, 1, 0.7, 0.5);    // тень с нижней стороны
-      seg(S, E, lite, 1, -0.8, -0.4); seg(E, H, lite, 1, -0.6, -0.3);  // блик сверху: объём мышц
-      this.ctx.fillStyle = dark; pxEllipse(this.ctx, H[0], H[1], 2.4, 2.4);
-      this.ctx.fillStyle = base; pxEllipse(this.ctx, H[0], H[1], 1.7, 1.7);
-      this.ctx.fillStyle = lite; cell(this.ctx, H[0] - 1.2, H[1] - 1.2, 1.2, 0.6);
-    });
-  }
-  // валун — между кулаками, чуть дальше по направлению рук; возвращает мировые координаты
+  // валун — между кулаками (у картинки кулаки внизу рук), чуть дальше по направлению рук; мировые координаты
   cyclopsHands(t, top, o, rig) {
-    const a = this.cyclopsArmPoints(rig.arms, 'near'), b = this.cyclopsArmPoints(rig.arms, 'far');
-    const ang = (a.a2 + b.a2) / 2;
-    const lx = (a.H[0] + b.H[0]) / 2 + Math.cos(ang) * 3.2, ly = (a.H[1] + b.H[1]) / 2 + Math.sin(ang) * 3.2;
+    const { near, far } = rig.arms;
+    const a = this.armPoint(near, 0.1, 0.62), b = this.armPoint(far, 0.9, 0.62);
+    const a0 = this.armPoint(near, near.at[0], near.at[1]);
+    const ang = Math.atan2(a[1] - a0[1], a[0] - a0[0]);
+    const lx = (a[0] + b[0]) / 2 + Math.cos(ang) * 3.2, ly = (a[1] + b[1]) / 2 + Math.sin(ang) * 3.2;
     const r = o.rot || 0, c = Math.cos(r), s = Math.sin(r), f = t.face < 0 ? -1 : 1;
     return { x: t.x + (o.dx || 0) * f + (lx * c - ly * s) * f, y: top + (o.dy || 0) + lx * s + ly * c };
   }
@@ -663,9 +652,7 @@ export class Game {
     if (t.unit === 'archer') this.drawBowstring(t, top, o, rig.parts[1].dy || 0, windup, atk);
     const glow = LEVEL_GLOW[t.level];
     if (glow) drawRigOutline(ctx, t.unit, t.x, top, o, rig.parts, glow[0], glow[1] * (0.75 + 0.25 * Math.sin(this.time * 3 + t.i)));
-    if (rig.arms?.active) this.drawCyclopsArm(t, top, o, rig.arms, 'far');  // дальняя рука — за туловищем
     const { w, h } = drawRig(ctx, t.unit, t.x, top, o, rig.parts);
-    if (rig.arms?.active) this.drawCyclopsArm(t, top, o, rig.arms, 'near'); // ближняя — поверх
     if (t.stunT > 0) { // оглушён ударом тролля: звёздочки над головой
       const a = this.time * 7;
       ctx.fillStyle = '#f3c843';
