@@ -350,7 +350,7 @@ const SFX = {
 };
 
 // Пламя дракона звучит, пока видна струя: game.js каждый кадр сообщает flame(id, горит ли).
-// Ровное «фшшшш», как из горелки: включается плавно вместе с огнём и затихает, когда огонь гаснет.
+// Глухое «фуууух», как у огнемёта: включается плавно вместе с огнём и затихает, когда огонь гаснет.
 const flames = {};
 export function flame(id, on) {
   if (!ac) return;
@@ -359,13 +359,18 @@ export function flame(id, on) {
     const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + 0.12);
     g.connect(sfxBus);
     const nodes = [];
-    for (const [type, freq, q, vol] of [['lowpass', 2300, 0.7, 0.16], ['bandpass', 950, 0.6, 0.09], ['highpass', 4500, 0.7, 0.025]]) {
+    // огнемёт: глухой плотный поток — без верхов, основа в низах и середине
+    for (const [type, freq, q, vol] of [['lowpass', 850, 0.7, 0.26], ['bandpass', 300, 0.8, 0.2], ['lowpass', 150, 0.7, 0.18]]) {
       const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
       const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = freq; fl.Q.value = q;
       const v = ac.createGain(); v.gain.value = vol;
       src.connect(fl); fl.connect(v); v.connect(g);
       src.start(t, Math.random() * 0.5); nodes.push(src);
     }
+    // лёгкое «дыхание» потока, чтобы звук жил, а не гудел ровно
+    const lf = ac.createOscillator(); lf.frequency.value = 6 + Math.random() * 2;
+    const lg = ac.createGain(); lg.gain.value = 0.15; lf.connect(lg); lg.connect(g.gain);
+    lf.start(t); nodes.push(lf);
     flames[id] = { g, nodes };
   } else if (!on && f) {
     f.g.gain.cancelScheduledValues(t);
