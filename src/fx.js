@@ -83,8 +83,10 @@ export class FX {
     for (const p of this.parts) {
       if (p.fire) continue;
       ctx.fillStyle = p.c;
+      if (p.fade) ctx.globalAlpha = Math.max(0, p.life / p.max) * p.fade;
       const sz = Math.max(1, Math.round(p.s * 1.7)) * PIX;
       ctx.fillRect(Math.round(p.x / PIX) * PIX, Math.round(p.y / PIX) * PIX, sz, sz);
+      ctx.globalAlpha = 1;
     }
     this.drawFire(ctx);
     for (const n of this.nums) {
@@ -110,4 +112,57 @@ export function line(ctx, x1, y1, x2, y2, color, t = 1) {
     if (e2 >= dy) { err += dy; x1 += sx; }
     if (e2 <= dx) { err += dx; y1 += sy; }
   }
+}
+
+// ---------- валун циклопа ----------
+// Пиксельный валун 15×13 на общей сетке PIX: бугристый край, тёмный контур, свет сверху-слева,
+// трещины и пятна мха. 8 кадров поворота: форма и детали вращаются, а свет остаётся на месте.
+const ROCK_W = 15, ROCK_H = 13, ROCK_FRAMES = 8;
+const ROCK_PAL = ['#2c2729', '#4f4947', '#736c63', '#9a9284', '#c2baa9'];
+const MOSS = ['#4f6a32', '#6f8f43'];
+let rockFrames = null;
+
+function hash(x, y) { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
+
+function makeRockFrame(theta) {
+  const c = document.createElement('canvas');
+  c.width = ROCK_W; c.height = ROCK_H;
+  const x = c.getContext('2d');
+  const cs = Math.cos(theta), sn = Math.sin(theta);
+  const inside = (i, j) => {
+    const nx = (i + 0.5 - ROCK_W / 2) / 7.1, ny = (j + 0.5 - ROCK_H / 2) / 6.2;
+    const a = Math.atan2(ny, nx) - theta;
+    const r = 1 + 0.09 * Math.sin(3 * a + 1.3) + 0.05 * Math.cos(5 * a);
+    return nx * nx + ny * ny < r * r * 0.97;
+  };
+  const L = [-0.52, -0.62, 0.59];
+  for (let j = 0; j < ROCK_H; j++) for (let i = 0; i < ROCK_W; i++) {
+    if (!inside(i, j)) continue;
+    const edge = !inside(i - 1, j) || !inside(i + 1, j) || !inside(i, j - 1) || !inside(i, j + 1);
+    const nx = (i + 0.5 - ROCK_W / 2) / 7.1, ny = (j + 0.5 - ROCK_H / 2) / 6.2;
+    const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+    // локальные координаты камня (вращаются вместе с ним) — для трещин и мха
+    const u = nx * cs + ny * sn, v = -nx * sn + ny * cs;
+    // свет: грани камня — по бугристой нормали, чтобы поверхность была неровной
+    const bump = (hash(Math.round(u * 4), Math.round(v * 4)) - 0.5) * 0.35;
+    const lvl = nx * L[0] + ny * L[1] + nz * L[2] + bump;
+    let col = ROCK_PAL[lvl < 0.05 ? 1 : lvl < 0.38 ? 2 : lvl < 0.72 ? 3 : 4];
+    if (Math.abs(v - 0.45 * u + 0.05) < 0.1 && u > -0.55 && u < 0.25) col = ROCK_PAL[1];      // трещина
+    if (Math.abs(u + 0.3 * v - 0.42) < 0.08 && v > 0.05 && v < 0.55) col = ROCK_PAL[1];
+    if (v < -0.25 && hash(Math.round(u * 7), Math.round(v * 7)) > 0.35) col = MOSS[lvl > 0.55 ? 1 : 0]; // мох
+    if (edge) col = ROCK_PAL[0];
+    x.fillStyle = col; x.fillRect(i, j, 1, 1);
+  }
+  return c;
+}
+
+// frame — любое число (дробная часть отбрасывается), кадры идут по кругу
+export function drawBoulder(ctx, cx, cy, frame = 0) {
+  if (!rockFrames) rockFrames = Array.from({ length: ROCK_FRAMES }, (_, i) => makeRockFrame(i * Math.PI * 2 / ROCK_FRAMES));
+  const f = rockFrames[((Math.floor(frame) % ROCK_FRAMES) + ROCK_FRAMES) % ROCK_FRAMES];
+  const w = ROCK_W * PIX, h = ROCK_H * PIX;
+  const x = Math.round((cx - w / 2) / PIX) * PIX, y = Math.round((cy - h / 2) / PIX) * PIX;
+  ctx.save(); ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(f, x, y, w, h);
+  ctx.restore();
 }

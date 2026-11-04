@@ -229,11 +229,24 @@ const SFX = {
     noise(0.35, { filter: 'lowpass', freq: 420, vol: 0.45 });
     noise(0.06, { freq: 2600, q: 2, vol: 0.12, when: 0.01 });
   },
-  // луч жреца: гул, вихрь и отзвук
+  // луч жреца: гудящий поток света с дрожанием и шипение ожога при попадании
   zap() {
-    for (const f of [110, 116.5]) thump(f * 1.5, f, 0.38, 0.08);
-    noise(0.34, { freq: 380, to: 2600, q: 5, vol: 0.12, attack: 0.04 });
-    bell(rnd(1180, 1320), 0.5, { vol: 0.025, ratio: 1.41, index: 1.2, when: 0.05 });
+    const t = at(0), dur = 0.32;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 4;
+    f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(2600, t + 0.08);
+    f.frequency.exponentialRampToValueAtTime(1500, t + dur);
+    const g = ac.createGain(); env(g, t, 0.11, 0.015, dur, 0.12);
+    const trem = ac.createGain(); trem.gain.value = 1;
+    const lf = ac.createOscillator(), lg = ac.createGain(); lf.frequency.value = 32; lg.gain.value = 0.45; // дрожание луча
+    lf.connect(lg); lg.connect(trem.gain);
+    for (const [fr, type] of [[rnd(440, 470), 'sawtooth'], [rnd(660, 700), 'sawtooth'], [1320, 'sine']]) {
+      const o = ac.createOscillator(); o.type = type; o.frequency.value = fr;
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    f.connect(trem); trem.connect(g); g.connect(sfxBus);
+    lf.start(t); lf.stop(t + dur + 0.05);
+    noise(0.22, { filter: 'highpass', freq: 4200, vol: 0.09, attack: 0.01, when: 0.04 }); // шипение ожога
+    bell(rnd(1700, 1900), 0.4, { vol: 0.03, ratio: 2.01, index: 0.6, when: 0.03 });
   },
   // рёв пламени
   fire() {

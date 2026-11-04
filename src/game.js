@@ -4,7 +4,7 @@ import { unitRig, enemyRig } from './anim.js';
 import { PATH_LEN, posAt, SLOTS, renderBackground, drawTower, drawSlot, TOWER_TOP } from './map.js';
 
 const LIFT = 18; // высота полёта гаргулий
-import { FX, line } from './fx.js';
+import { FX, line, drawBoulder } from './fx.js';
 
 export class Game {
   constructor(canvas, emit) {
@@ -264,7 +264,7 @@ export class Game {
     } else if (t.unit === 'cyclops') {
       const lead = posAt(target.d + target.def.speed * 0.6);
       this.sfx('throw');
-      this.projectiles.push({ kind: 'rock', sx: ox, sy: oy - 4, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg, splash: s.splash, stun: s.stun });
+      this.projectiles.push({ kind: 'rock', sx: ox, sy: oy - 4, gy0: t.y, spin: t.face, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg, splash: s.splash, stun: s.stun });
     } else if (t.unit === 'lich') {
       this.sfx('zap');
       const ps = size('lich'); // луч света бьёт из сферы на навершии посоха
@@ -312,6 +312,8 @@ export class Game {
       const k = Math.min(1, p.t / p.dur);
       p.x = p.sx + (p.tx - p.sx) * k;
       p.y = p.sy + (p.ty - p.sy) * k - Math.sin(Math.PI * k) * 26;
+      if (Math.random() < dt * 14) // с валуна сыплется крошка
+        this.fx.parts.push({ x: p.x + (Math.random() - 0.5) * 5, y: p.y + 2, vx: 0, vy: 10, life: 0.35, max: 0.35, c: Math.random() < 0.5 ? '#736c63' : '#4f4947', g: 120, s: 0.6 });
       if (k >= 1) {
         p.alive = false;
         for (const e of this.enemies) {
@@ -321,7 +323,17 @@ export class Game {
             e.stunT = Math.max(e.stunT, e.def.boss ? p.stun * 0.3 : p.stun);
           }
         }
-        this.fx.burst(p.tx, p.ty, ['#8a8478', '#5e584e', '#8a6a44'], 14, 50, 0.5);
+        // валун раскалывается: осколки разлетаются по дуге, поднимается облако пыли
+        for (let i = 0; i < 10; i++) {
+          const a = -Math.PI * (0.1 + 0.8 * Math.random()), v = 35 + Math.random() * 55;
+          this.fx.parts.push({ x: p.tx + (Math.random() - 0.5) * 4, y: p.ty - 1, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+            life: 0.45 + Math.random() * 0.3, max: 0.75, c: ['#9a9284', '#736c63', '#4f4947', '#c2baa9'][i % 4], g: 260, s: i < 4 ? 1.3 : 0.7 });
+        }
+        for (let i = 0; i < 12; i++) {
+          const a = Math.random() * Math.PI * 2, v = 8 + Math.random() * 18;
+          this.fx.parts.push({ x: p.tx + Math.cos(a) * 3, y: p.ty + Math.sin(a) * 1.5, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.4 - 6,
+            life: 0.6 + Math.random() * 0.4, max: 1, c: i % 2 ? '#a89a80' : '#8c7f68', g: -6, s: 1.8, fade: 0.55 });
+        }
         this.sfx('rock');
         this.fx.shake = Math.max(this.fx.shake, 0.8);
       }
@@ -400,9 +412,7 @@ export class Game {
     const ry = top + (o.dy || 0);
     if (t.unit === 'cyclops' && windup > 0 && !this.cyclopsHasBoulder) { // валун над головой перед броском
       const rx = t.x - t.face * 3 * windup, by = ry - h + 2 - 6 * windup;
-      ctx.fillStyle = '#2e2c30'; ctx.beginPath(); ctx.arc(rx, by, 4.2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#8a8478'; ctx.beginPath(); ctx.arc(rx, by, 3.4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#b0aa9c'; ctx.fillRect(rx - 2, by - 2, 2, 1.5);
+      drawBoulder(ctx, rx, by, 0);
     }
     if (t.unit === 'lich') { // свечение солнечной сферы на посохе жреца
       const glow = 0.35 + 0.25 * Math.sin(this.time * 4 + t.i) + atk * 0.6;
@@ -458,12 +468,11 @@ export class Game {
       ctx.fillStyle = '#e05a4a'; ctx.fillRect(Math.round(p.x - cx * 5), Math.round(p.y - cy * 5), 1, 1);
     } else if (p.kind === 'rock') {
       const k = Math.min(1, p.t / p.dur);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(Math.round(p.sx + (p.tx - p.sx) * k) - 2, Math.round(p.sy + (p.ty - p.sy) * k) + 26 * 0, 5, 2);
-      const x = Math.round(p.x), y = Math.round(p.y);
-      ctx.fillStyle = '#3e3c40'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
-      ctx.fillStyle = '#8a8478'; ctx.fillRect(x - 2, y - 2, 5, 5);
-      ctx.fillStyle = '#a8a296'; ctx.fillRect(x - 2, y - 2, 2, 2);
+      // тень на земле: растёт и темнеет по мере приближения валуна
+      const gy = p.gy0 + (p.ty + 3 - p.gy0) * k;
+      ctx.fillStyle = `rgba(0,0,0,${0.08 + 0.22 * k})`;
+      ctx.beginPath(); ctx.ellipse(p.x, gy, 2 + 2 * k, 1 + 0.8 * k, 0, 0, Math.PI * 2); ctx.fill();
+      drawBoulder(ctx, p.x, p.y, p.t * 20 * p.spin); // валун кувыркается в полёте
     }
   }
 
