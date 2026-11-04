@@ -118,7 +118,8 @@ function refreshNextWave() {
   if (e.armor >= 0.3) tags.push(TRAITS.armor);
   if (e.speed >= 35) tags.push(TRAITS.fast);
   if (e.boss) tags.push(TRAITS.boss); else if (e.regen) tags.push(TRAITS.regen);
-  const when = game.phase === 'break' ? `<span class="time">${Math.ceil(game.breakT)} с</span>` : game.phase === 'prep' ? '' : '<span class="lbl">после этой</span>';
+  const when = game.phase === 'break' && game.enemies.length === 0 ? `<span class="time">${Math.ceil(game.breakT)} с</span>`
+    : game.phase === 'prep' ? '' : '<span class="lbl">после этой</span>';
   const html = `<span class="lbl">Далее:</span>${portrait(n.type)}<span>${e.name}${n.count > 1 ? ' ×' + n.count : ''}</span>` +
     tags.map(([t, c]) => `<span class="tag ${c}">${t}</span>`).join('') + when;
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
@@ -211,8 +212,9 @@ window.addEventListener('keydown', ev => {
 function showBanner(d) {
   const old = stage.querySelector('#banner'); if (old) old.remove();
   const b = document.createElement('div');
-  b.id = 'banner'; if (d.boss) b.className = 'boss';
-  b.innerHTML = d.rage ? 'Тролль в ярости!<small>Он ускорился — добивай его</small>'
+  b.id = 'banner'; if (d.boss) b.className = 'boss'; if (d.cleared) b.className = 'ok';
+  b.innerHTML = d.cleared ? `Волна ${d.idx + 1} отбита!<small>Дальше: ${d.next} — через ${d.wait} с</small>`
+    : d.rage ? 'Тролль в ярости!<small>Он ускорился — добивай его</small>'
     : `Волна ${d.idx + 1}: ${d.name}<small>${d.boss ? 'Босс идёт к замку!' : 'Отряд ×' + d.count + ' идёт колонной'}</small>`;
   stage.append(b);
   setTimeout(() => b.remove(), 2500);
@@ -295,6 +297,7 @@ loadAssets().then(() => {
     if (ev === 'wave') showBanner(data);
     if (ev === 'end') showEnd(data);
     if (ev === 'rage') showBanner({ idx: -1, rage: true, boss: true });
+    if (ev === 'cleared') showBanner({ ...data, cleared: true });
   });
   window.__game = game;
   game.sfx = sfx;

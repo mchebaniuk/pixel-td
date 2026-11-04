@@ -8,7 +8,7 @@ export const PLAY_BOTTOM = 270;
 export const START_GOLD = 300;
 export const START_LIVES = 20;
 export const SELL_RATE = 0.7;   // продажа возвращает 70% вложенного
-export const WAVE_BREAK = 5;    // секунд между волнами
+export const WAVE_BREAK = 5;    // секунд паузы между волнами — отсчёт начинается, когда враги прошлой волны закончились
 export const EARLY_BONUS = 15;  // золото за досрочный вызов волны
 
 export const MANA_MAX = 100;
