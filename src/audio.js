@@ -266,12 +266,21 @@ const SFX = {
     noise(0.08, { freq: 2200, q: 1.5, vol: 0.16 });
     for (let i = 0; i < 7; i++) noise(0.03, { freq: rnd(900, 2800), q: 5, vol: rnd(0.06, 0.12), when: 0.04 + i * rnd(0.025, 0.05) });
   },
-  // луч жреца: свист и шипение — узкая полоса шума взлетает вверх, вокруг шипит воздух, низов нет совсем
+  // луч жреца: плавное гудящее «вжуум» — мягкий аккорд через резонансный фильтр, который проходит вверх и оседает;
+  // без шипения и без пищащих нот
   zap() {
-    noise(0.36, { freq: 2200, to: 4600, q: 14, vol: 0.22, attack: 0.03 });
-    noise(0.36, { freq: 3300, to: 6200, q: 9, vol: 0.12, attack: 0.05, when: 0.02 });
-    noise(0.42, { filter: 'highpass', freq: 5500, vol: 0.1, attack: 0.04 });
-    noise(0.12, { filter: 'highpass', freq: 3500, vol: 0.07, when: 0.3 }); // пшш — ожог на цели
+    const t = at(0), dur = 0.5;
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 7;
+    f.frequency.setValueAtTime(350, t); f.frequency.exponentialRampToValueAtTime(1600, t + 0.14);
+    f.frequency.exponentialRampToValueAtTime(600, t + dur);
+    const g = ac.createGain(); env(g, t, 0.09, 0.06, dur, 0.25);
+    for (const [fr, det] of [[196, -6], [196, 6], [294, 0]]) {
+      const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fr; o.detune.value = det;
+      o.frequency.setValueAtTime(fr * 0.94, t); o.frequency.exponentialRampToValueAtTime(fr, t + 0.12);
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    f.connect(g); g.connect(sfxBus);
+    noise(0.4, { freq: 1200, to: 800, q: 1.2, vol: 0.025, attack: 0.08 }); // лёгкий воздух вокруг луча
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — настоящие записанные голоса (скелет, гоблин, волк, гаргулья, орк, тролль)

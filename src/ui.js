@@ -16,10 +16,12 @@ const ICONS = {
   bolt:   ['.....yy..', '....yy...', '...yy....', '..yyyyy..', '....yy...', '...yy....', '..yy.....', '.y.......'],
 };
 const ICOL = { y: '#f3c843', Y: '#9a6b1c', r: '#e0443a', R: '#7a1f1a', w: '#ffffff', o: '#f08a2a', c: '#9ae4ff' };
-document.querySelectorAll('canvas[data-icon]').forEach(c => {
+function paintIcon(c) {
   const x = c.getContext('2d');
   ICONS[c.dataset.icon].forEach((row, j) => [...row].forEach((ch, i) => { if (ICOL[ch]) { x.fillStyle = ICOL[ch]; x.fillRect(i, j, 1, 1); } }));
-});
+}
+document.querySelectorAll('canvas[data-icon]').forEach(paintIcon);
+const icon = name => `<canvas data-icon="${name}" width="9" height="9"></canvas>`;
 const portrait = k => `<img src="${spriteURL(k)}" alt="">`;
 
 // ---------- состояние интерфейса ----------
@@ -51,8 +53,9 @@ function buildUnitButtons() {
     b.className = 'unit'; b.id = 'u-' + k;
     b.title = `${u.name} (клавиша ${keyN}): ${u.desc}\nУрон ${l1.dmg} · дальность ${l1.range} · выстрел раз в ${l1.rate} с\n` +
       `${u.air ? 'Бьёт наземных и летающих' : 'Бьёт только наземных'}\nНа 3 уровне: ${u.perk}`;
-    b.innerHTML = `<span class="key">${keyN}</span><div class="pic">${portrait(k)}</div><span>${u.name}</span>` +
-      `<span class="air ${u.air ? 'yes' : ''}">${u.air ? 'земля + воздух' : 'только земля'}</span><span class="cost">${u.cost}</span>`;
+    b.innerHTML = `<span class="key">${keyN}</span><div class="pic">${portrait(k)}</div><span class="name">${u.name}</span>` +
+      `<span class="air ${u.air ? 'yes' : ''}">${u.air ? 'земля + воздух' : 'только земля'}</span><span class="cost">${icon('coin')}${u.cost}</span>`;
+    b.querySelectorAll('canvas[data-icon]').forEach(paintIcon);
     b.onmouseenter = () => { hoverUnit = k; dirty = true; };
     b.onmouseleave = () => { hoverUnit = null; dirty = true; };
     b.onclick = () => {
@@ -87,6 +90,8 @@ function refreshHud() {
   for (const k of Object.keys(C.SPELLS)) {
     const b = $('sp-' + k);
     b.disabled = game.mana < C.SPELLS[k].mana || game.phase === 'over' || game.phase === 'prep';
+    b.style.setProperty('--charge', Math.min(1, game.mana / C.SPELLS[k].mana).toFixed(3));
+    b.classList.toggle('ready', !b.disabled);
     b.classList.toggle('on', game.targeting === k || (k === 'slow' && game.slowT > 0) || (k === 'haste' && game.hasteT > 0));
   }
   for (const k of C.UNIT_ORDER) {
@@ -120,32 +125,37 @@ function refreshNextWave() {
   box.hidden = false;
 }
 
+const stars = n => [1, 2, 3].map(i => `<span class="${i <= n ? '' : 'off'}">★</span>`).join('');
+// карточка юнита: портрет, имя, звёзды уровня, характеристики со значками и навык 3 уровня
+function unitCard(k, lv, s, nl, extra = '') {
+  const u = C.UNITS[k], d = (a, b) => (b !== undefined && b !== a ? ` <i>→ ${b}</i>` : '');
+  const perk = lv >= 3 ? `<div class="perk">★ ${u.perk}</div>` : `<div class="perk next">на 3 ур.: ${u.perk}</div>`;
+  return `<div class="tpic">${portrait(k)}</div><div>
+    <div class="tname">${u.name} <span class="lvl">${lv ? stars(lv) : ''}</span>${extra}</div>
+    <div class="stats"><span><em>⚔</em> ${s.dmg}${nl ? d(s.dmg, nl.dmg) : ''}</span><span><em>◎</em> ${s.range}${nl ? d(s.range, nl.range) : ''}</span>` +
+    `<span><em>⏱</em> ${s.rate} с</span><span><em>${u.air ? '✈' : '⛰'}</em> ${u.air ? 'и воздух' : 'земля'}</span></div>${perk}</div>`;
+}
+function setInfo(html, empty) { const info = $('info'); if (info.dataset.html !== html) { info.innerHTML = html; info.dataset.html = html; } info.classList.toggle('empty', !!empty); }
+
 function refreshTowerPanel() {
   const t = game.towers[game.selected];
-  const up = $('upgrade'), sell = $('sell'), info = $('info');
-  if (game.targeting === 'meteor') { info.innerHTML = 'Нажми на карту, куда упадёт <b>метеор</b>. Esc — отмена'; }
-  if (hoverUnit && game.targeting !== 'meteor') { // наведение на кнопку постройки — описание юнита
-    const u = C.UNITS[hoverUnit], l = u.levels[0];
-    info.innerHTML = `<b>${u.name}</b> · ${u.desc}<br>урон ${l.dmg} · дальн. ${l.range} · ${u.air ? 'земля + воздух' : 'только земля'}<br><i>3 ур.: ${u.perk}</i>`;
-  }
+  const up = $('upgrade'), sell = $('sell');
+  if (game.targeting === 'meteor') setInfo('Нажми на карту, куда упадёт <b>метеор</b>. Esc — отмена', true);
+  else if (hoverUnit) { const u = C.UNITS[hoverUnit]; setInfo(unitCard(hoverUnit, 0, u.levels[0], null)); }
   if (!t || !t.unit) {
     up.disabled = sell.disabled = true; up.textContent = 'Улучшить'; sell.textContent = 'Продать';
     if (game.targeting !== 'meteor' && !hoverUnit) {
-      info.innerHTML = t ? 'Башня пустая. Выбери защитника в панели <b>Постройка</b>'
+      setInfo(t ? 'Башня пустая. Выбери защитника в панели <b>Постройка</b>'
         : pick ? `Нажми на пустую башню, чтобы поставить: <b>${C.UNITS[pick].name}</b>`
-        : 'Нажми на башню, чтобы посадить защитника или улучшить его';
+        : 'Нажми на башню, чтобы посадить защитника или улучшить его', true);
     }
     return;
   }
   const u = C.UNITS[t.unit], s = game.stats(t), nl = u.levels[t.level];
-  const d = (a, b) => (b !== undefined && b !== a ? ` <i>→ ${b}</i>` : '');
-  if (game.targeting !== 'meteor' && !hoverUnit) {
-    const perk = t.level >= 3 ? `<br><b>★ ${u.perk}</b>` : t.level === 2 ? `<br>на 3 ур.: <i>${u.perk}</i>` : '';
-    info.innerHTML = `<b>${u.name}</b> · ур. ${t.level}${t.stunT > 0 ? ' · <b>оглушён!</b>' : ''}<br>урон ${s.dmg}${nl ? d(s.dmg, nl.dmg) : ''} · дальн. ${s.range}${nl ? d(s.range, nl.range) : ''}${perk}`;
-  }
-  if (nl) { up.textContent = `Улучшить ${nl.cost}`; up.disabled = game.gold < nl.cost; }
+  if (game.targeting !== 'meteor' && !hoverUnit) setInfo(unitCard(t.unit, t.level, s, nl, t.stunT > 0 ? ' <span class="stun">оглушён!</span>' : ''));
+  if (nl) { up.textContent = `Улучшить · ${nl.cost}`; up.disabled = game.gold < nl.cost; }
   else { up.textContent = 'Макс. уровень'; up.disabled = true; }
-  sell.textContent = `Продать +${game.sellValue(t)}`; sell.disabled = false;
+  sell.textContent = `Продать · +${game.sellValue(t)}`; sell.disabled = false;
 }
 
 // ---------- ввод ----------

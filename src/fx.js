@@ -4,13 +4,16 @@ import { W, H } from './config.js';
 // палитра огня как на концепт-арте: контур, красный, оранжевый, жёлтый, ядро
 const FIRE = [['#6e160e', 1, 1], ['#d9401a', 1, 0], ['#ff8c1e', 0.74, 0], ['#ffd23f', 0.48, 0], ['#fff4c0', 0.24, 0]];
 
-// пиксельный круг на сетке огня (клетка = PIX логических единиц, как «пиксель» фона и персонажей)
-function disc(c, x, y, r) {
+// язык пламени на сетке огня: вытянут вдоль полёта, спереди сужается, края рваные и мерцают
+function tongue(c, x, y, r, ang, stretch, seed) {
   x /= PIX; y /= PIX; r /= PIX;
-  const R = Math.ceil(r), cx = Math.round(x), cy = Math.round(y);
-  for (let j = -R; j <= R; j++) {
-    const w = Math.floor(Math.sqrt(Math.max(0, r * r - j * j)) + 0.35);
-    c.fillRect(cx - w, cy + j, w * 2 + 1, 1);
+  const L = r * stretch, R = Math.ceil(L), cs = Math.cos(ang), sn = Math.sin(ang), cx = Math.round(x), cy = Math.round(y);
+  for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) {
+    const u = i * cs + j * sn, v = -i * sn + j * cs;
+    const taper = u > 0 ? 1 - 0.55 * u / L : 1;           // кончик языка тоньше
+    const d = (u / L) ** 2 + (v / (r * taper)) ** 2;
+    const n = Math.sin((i + seed) * 12.9898 + (j - seed) * 78.233) * 43758.5453;
+    if (d < 0.78 + (n - Math.floor(n)) * 0.45) c.fillRect(cx + i, cy + j, 1, 1);
   }
 }
 
@@ -25,7 +28,7 @@ export class FX {
   }
   flame(x, y, vx, vy) {
     const cols = ['#fff3a0', '#f3c843', '#f08a2a', '#d0402e'];
-    this.parts.push({ x, y, vx, vy, life: 0.4, max: 0.4, fire: true, cols, g: -14, s: 3 });
+    this.parts.push({ x, y, vx, vy, life: 0.32, max: 0.32, fire: true, cols, g: -40, s: 3, seed: Math.random() * 100 });
   }
   number(x, y, val, color = '#fff', prefix = '-') {
     this.nums.push({ x, y, val: Math.round(val), life: 0.8, color, prefix });
@@ -49,7 +52,11 @@ export class FX {
         const age = 1 - p.life / p.max;
         if (k < 0.5 && age > 0.55 + k) continue;      // яркое ядро только у свежих клубов
         if (k < 0.3 && age > 0.3) continue;
-        disc(c, p.x, p.y, ((1.4 + age * 2.3) * k + extra * 0.8) * (p.scale || 1));
+        const r = ((1 + age * 1.9) * k + extra * 0.7) * (p.scale || 1);
+        // язык вытянут по полёту, а к концу жизни загибается вверх, как настоящее пламя
+        const sp = Math.hypot(p.vx, p.vy), va = sp > 1 ? Math.atan2(p.vy, p.vx) : -Math.PI / 2;
+        let da = -Math.PI / 2 - va; da = Math.atan2(Math.sin(da), Math.cos(da));
+        tongue(c, p.x, p.y, r * 0.9, va + da * Math.min(1, age * 0.9), 1.15 + Math.min(1, sp / 160) * 0.5, (p.seed || 0) + Math.floor(p.life * 28));
       }
     }
     // искры

@@ -75,13 +75,14 @@ export const ENEMIES = {
               slam: { every: 7, radius: 55, stun: 1.6 }, rage: { at: 0.5, speed: 1.35 } },
 };
 
-// Каждая волна: один тип врагов, идут колонной
+// Каждая волна: один тип врагов, идут колонной. gap — секунд между выходом врагов
+export const MIN_SPACING = 11; // враги в колонне держат дистанцию по дороге не меньше этой (не наползают друг на друга)
 export const WAVES = [
-  { type: 'skeleton', count: 10, gap: 1.0 },
-  { type: 'goblin',   count: 16, gap: 0.6 },
-  { type: 'wolf',     count: 10, gap: 0.8 },
-  { type: 'gargoyle', count: 10, gap: 1.0 },
-  { type: 'orc',      count: 8,  gap: 1.4 },
+  { type: 'skeleton', count: 10, gap: 1.4 },
+  { type: 'goblin',   count: 16, gap: 0.9 },
+  { type: 'wolf',     count: 10, gap: 1.0 },
+  { type: 'gargoyle', count: 10, gap: 1.4 },
+  { type: 'orc',      count: 8,  gap: 1.9 },
   { type: 'troll',    count: 1,  gap: 1 },
 ];
 

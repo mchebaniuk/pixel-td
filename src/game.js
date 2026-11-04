@@ -7,6 +7,7 @@ const LIFT = 18; // высота полёта гаргулий
 // места на фоне (логические координаты): пламя факелов и ворота замка
 const TORCHES = [[20, 86], [390, 109], [438, 140]];
 const GATE = { x: 424, y: 97, w: 20, h: 20 };
+const GATE_FADE = 16; // за сколько единиц пути до конца враг начинает растворяться в проходе ворот
 // обводка улучшенных защитников: 2 уровень — серебро, 3 — золото
 const LEVEL_GLOW = { 2: ['#a8d4ff', 0.45], 3: ['#ffd34a', 0.75] };
 import { FX, line, drawBoulder, cell, pxEllipse } from './fx.js';
@@ -31,10 +32,10 @@ export class Game {
     this.phase = 'prep';          // prep | spawning | break | final | over
     this.spawnLeft = 0; this.spawnT = 0; this.breakT = 0;
     this.enemies = []; this.projectiles = []; this.meteors = []; this.corpses = [];
-    this.burns = []; this.shocks = []; this.cracks = []; this.gateHit = 0;
+    this.burns = []; this.shocks = []; this.gateHit = 0;
     // светлячки над травой: медленно кружат и мерцают
     this.flies = Array.from({ length: 18 }, () => ({ x: 20 + Math.random() * 380, y: 95 + Math.random() * 135, ph: Math.random() * 7, sp: 0.4 + Math.random() * 0.6 }));
-    this.towers = SLOTS.map(([x, y], i) => ({ i, x, y, unit: null, level: 0, cd: 0, invested: 0, face: 1, anim: 0 }));
+    this.towers = SLOTS.map(([x, y], i) => ({ i, x, y, unit: null, level: 0, cd: 0, invested: 0, face: -1, anim: 0 })); // защитники смотрят влево — навстречу врагам
     this.fx = new FX();
     this.time = 0; this.playTime = 0; this.kills = 0;
     this.speed = 1; this.paused = false;
@@ -51,7 +52,7 @@ export class Game {
     const t = this.towers[i], def = C.UNITS[unit];
     if (t.unit || this.gold < def.cost) return false;
     this.gold -= def.cost;
-    Object.assign(t, { unit, level: 1, cd: 0.3, invested: def.cost });
+    Object.assign(t, { unit, level: 1, cd: 0.3, invested: def.cost, face: -1 }); // новый защитник смотрит навстречу врагам
     this.sfx('build');
     this.fx.burst(t.x, t.y - 20, ['#d0cabe', '#a39d92', '#f3c843'], 14, 40, 0.6);
     this.emit('change');
@@ -198,6 +199,10 @@ export class Game {
     let k = e.enraged ? e.def.rage.speed : 1;
     if (e.slowT > 0) { e.slowT -= dt; k *= e.slowK; }
     if (this.slowT > 0) k *= C.SPELLS.slow.slow;
+    // держим дистанцию в колонне: если впереди кто-то ближе MIN_SPACING, притормаживаем
+    let gap = Infinity;
+    for (const o of this.enemies) if (o !== e && o.alive && o.d > e.d && o.def.flying === e.def.flying) gap = Math.min(gap, o.d - e.d);
+    if (gap < C.MIN_SPACING) k *= Math.max(0, (gap - C.MIN_SPACING * 0.6) / (C.MIN_SPACING * 0.4));
     e.d += e.def.speed * k * dt;
     e.anim += dt * k;
     const p = posAt(e.d);
@@ -208,9 +213,8 @@ export class Game {
       this.lives -= e.def.lives;
       if (e.def.boss) this.bossLeaked = true;
       this.sfx('leak');
-      this.hitGate(e.def.lives);
+      this.hitGate();
       this.fx.shake = Math.min(3, 1 + e.def.lives / 4);
-      this.fx.burst(e.x, e.y - 20, ['#ff5a4a', '#ffffff'], 8, 30, 0.6);
       this.emit('change');
     }
   }
@@ -238,18 +242,8 @@ export class Game {
     }
   }
 
-  // прорыв к воротам: створки вздрагивают, появляется трещина, летит пыль
-  hitGate(lives) {
-    this.gateHit = 0.35;
-    for (let n = 0; n < Math.min(3, lives); n++) {
-      if (this.cracks.length >= 14) break;
-      let x = GATE.x + 3 + Math.random() * (GATE.w - 6), y = GATE.y + 4 + Math.random() * (GATE.h - 8);
-      const pts = [[x, y]];
-      for (let i = 0; i < 3; i++) { x += (Math.random() - 0.5) * 6; y += (Math.random() - 0.3) * 5; pts.push([x, y]); }
-      this.cracks.push(pts);
-    }
-    this.fx.burst(GATE.x + GATE.w / 2, GATE.y + GATE.h - 2, ['#8c7f68', '#a89a80', '#6b4528'], 14, 35, 0.6, 60);
-  }
+  // враг прорвался в замок: в проходе вспыхивает тревожный отсвет
+  hitGate() { this.gateHit = 0.6; }
 
   // павший враг рассыпается на пиксели своей картинки, они осыпаются и тают
   dissolve(c) {
@@ -279,7 +273,7 @@ export class Game {
       for (; b.acc >= 1; b.acc--) {
         const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * b.r;
         this.fx.parts.push({ x: b.x + Math.cos(a) * r, y: b.y + Math.sin(a) * r * 0.5, vx: 0, vy: -18 - Math.random() * 10,
-          life: 0.32, max: 0.32, fire: true, g: -10, s: 2, scale: 0.5 });
+          life: 0.32, max: 0.32, fire: true, g: -10, s: 2, scale: 0.6, seed: Math.random() * 100 });
       }
     }
     this.burns = this.burns.filter(b => b.t > 0);
@@ -328,7 +322,7 @@ export class Game {
     t.breath = Math.max(0, (t.breath || 0) - dt);
     this.flame(t.i, t.unit === 'dragon' && t.breath > 0); // звук огня ровно столько, сколько видна струя
     if (t.unit === 'dragon' && t.breath > 0) { // огонь льётся непрерывно, пока дракон дышит
-      t.fireAcc = (t.fireAcc || 0) + dt * 55; // клубов вдвое меньше, чтобы не закрывать врагов
+      t.fireAcc = (t.fireAcc || 0) + dt * 150; // много коротких языков сливаются в сплошную струю
       for (; t.fireAcc >= 1; t.fireAcc--) {
         const a = t.breathAng + (Math.random() - 0.5) * t.breathCone * 1.1;
         const v = 150 + Math.random() * 140, off = -Math.random() * v * dt; // после сдвига в этом же кадре клуб окажется у самой пасти
@@ -499,7 +493,37 @@ export class Game {
     ctx.restore();
   }
 
-  // окружение позади объектов: свет факелов, туман, выжженная земля, трещины ворот, ударные волны
+  // ворота замка открыты: в арке тёмный проход вглубь, решётка поднята наверх.
+  // Нарисованные на фоне створки закрываются темнотой построчно по форме арки
+  drawOpenGate() {
+    // форма проёма снята с фона: полукруглый верх, низ скошен по перспективе стены
+    const ctx = this.ctx, cx = 435.8, top = 95, r = 10.6, x0 = cx - r, x1 = cx + r;
+    const floorY = x => 124 + (x - x0) * 0.33;
+    for (let y = top; y < floorY(x1); y += PIX) {
+      let a = x0, b = x1;
+      if (y < top + r) { const half = Math.sqrt(Math.max(0, r * r - Math.pow(top + r - y, 2))); a = cx - half; b = cx + half; }
+      a = Math.max(a, x0 + 0.6); b = Math.min(b, x1 - 0.6);
+      const cut = x0 + (y - 124) / 0.33; // ниже порога слева — уже мостовая
+      if (y > 124) a = Math.max(a, cut);
+      if (b - a < PIX) continue;
+      const k = (y - top) / (floorY(x1) - top);
+      ctx.fillStyle = `rgb(${Math.round(12 + 26 * k)},${Math.round(10 + 15 * k)},${Math.round(14 + 8 * k)})`;
+      cell(ctx, a, y, b - a, PIX);
+    }
+    // поднятая решётка: из-под свода торчат нижние зубья
+    for (let i = -3; i <= 3; i++) {
+      const bx = cx + i * 2.6 - 0.6, len = 4.2 - Math.abs(i) * 0.6;
+      ctx.fillStyle = '#3d3f48'; cell(ctx, bx, top + 1.2 + Math.abs(i) * 0.4, 1.2, len);
+      ctx.fillStyle = '#6a6c76'; cell(ctx, bx, top + 1.2 + Math.abs(i) * 0.4, 0.6, len * 0.6);
+    }
+    // прорыв врага: в глубине прохода на миг тревожно вспыхивает отсвет
+    if (this.gateHit > 0) {
+      ctx.fillStyle = `rgba(255,110,50,${this.gateHit * 0.35})`;
+      for (let y = 112; y < 126; y += PIX) cell(ctx, x0 + 3, y, r * 2 - 6, PIX);
+    }
+  }
+
+  // окружение позади объектов: свет факелов, туман, выжженная земля, ворота, ударные волны
   drawAmbientBack() {
     const ctx = this.ctx, t = this.time;
     ctx.save();
@@ -513,7 +537,7 @@ export class Game {
     // факелы: дрожащий свет вокруг пламени
     ctx.globalCompositeOperation = 'lighter';
     TORCHES.forEach(([x, y], i) => {
-      const f = 0.75 + 0.25 * Math.sin(t * 11 + i * 2) * Math.sin(t * 7.3 + i);
+      const f = 0.8 + 0.2 * Math.sin(t * 2.6 + i * 2) * Math.sin(t * 1.7 + i); // медленное дыхание света
       ctx.fillStyle = `rgba(255,140,40,${0.07 * f})`; pxEllipse(ctx, x, y + 1, 13 * f, 10 * f);
       ctx.fillStyle = `rgba(255,170,60,${0.12 * f})`; pxEllipse(ctx, x, y, 6 * f, 5 * f);
     });
@@ -522,12 +546,7 @@ export class Game {
     for (const b of this.burns) {
       ctx.fillStyle = `rgba(40,18,8,${0.35 * Math.min(1, b.t)})`; pxEllipse(ctx, b.x, b.y, b.r, b.r * 0.5);
     }
-    // ворота: при ударе на миг темнеют, трещины остаются
-    if (this.gateHit > 0) { ctx.fillStyle = `rgba(0,0,0,${this.gateHit * 0.6})`; cell(ctx, GATE.x, GATE.y, GATE.w, GATE.h); }
-    const jolt = this.gateHit > 0 ? Math.round(Math.sin(t * 60)) * PIX : 0;
-    for (const pts of this.cracks) for (let i = 1; i < pts.length; i++) {
-      line(ctx, pts[i - 1][0] + jolt, pts[i - 1][1], pts[i][0] + jolt, pts[i][1], '#1a1008', 1);
-    }
+    this.drawOpenGate();
     // ударная волна от кулаков тролля: расходящееся пиксельное кольцо
     for (const s of this.shocks) {
       const k = s.t / 0.5, r = s.r * (0.2 + 0.8 * k), n = Math.floor(r * 1.6);
@@ -541,8 +560,8 @@ export class Game {
   drawAmbientFront() {
     const ctx = this.ctx, t = this.time;
     TORCHES.forEach(([x, y], i) => {
-      const h = 2.4 + Math.abs(Math.sin(t * 9 + i * 1.7)) * 2.4;
-      ctx.fillStyle = 'rgba(255,150,40,0.85)'; cell(ctx, x - 1.2 + Math.sin(t * 13 + i) * 0.6, y - h, 2.4, h);
+      const h = 2.4 + (0.5 + 0.5 * Math.sin(t * 2.4 + i * 1.7)) * 2.4; // язычок медленно вытягивается и опадает
+      ctx.fillStyle = 'rgba(255,150,40,0.85)'; cell(ctx, x - 1.2 + Math.sin(t * 1.9 + i) * 0.6, y - h, 2.4, h);
       ctx.fillStyle = 'rgba(255,236,150,0.9)'; cell(ctx, x - 0.6, y - h * 0.55, 1.2, h * 0.55);
     });
     for (const f of this.flies) {
@@ -551,6 +570,25 @@ export class Game {
       ctx.fillStyle = `rgba(214,255,120,${0.35 + 0.55 * blink})`; cell(ctx, f.x, f.y);
       ctx.fillStyle = `rgba(214,255,120,${0.12 * blink})`; cell(ctx, f.x - PIX, f.y - PIX, 3 * PIX, 3 * PIX);
     }
+  }
+
+  // тетива лучника рисуется отдельно: натягивается к лицу перед выстрелом, после выстрела распрямляется и дрожит.
+  // Концы лука и точка натяжения — в долях картинки (персонаж смотрит вправо)
+  drawBowstring(t, top, o, partDy, windup, atk) {
+    const ctx = this.ctx, { w, h } = size('archer'), f = t.face;
+    const pull = windup * windup * (3 - 2 * windup);
+    const P = (fx, fy) => [-w / 2 + fx * w, -h + fy * h + partDy];
+    const tipT = P(0.667, 0.03), tipB = P(0.66, 0.72);
+    const rest = P(0.665, 0.375), drawn = P(0.46, 0.335);
+    const quiver = atk > 0 ? Math.sin(atk * 40) * atk * 0.9 : 0; // дрожание после спуска
+    const nx = rest[0] + (drawn[0] - rest[0]) * pull + quiver, ny = rest[1] + (drawn[1] - rest[1]) * pull;
+    ctx.save();
+    ctx.translate(t.x + (o.dx || 0) * f, top + (o.dy || 0));
+    if (o.rot) ctx.rotate(f < 0 ? -o.rot : o.rot);
+    if (f < 0) ctx.scale(-1, 1);
+    line(ctx, tipT[0], tipT[1], nx, ny, '#d8d0bc', 1);
+    line(ctx, nx, ny, tipB[0], tipB[1], '#d8d0bc', 1);
+    ctx.restore();
   }
 
   drawRange(x, y, r, color = '#fff3c0') {
@@ -575,6 +613,7 @@ export class Game {
     const windup = t.hasTarget ? Math.min(1, Math.max(0, 1 - t.cd / 0.5)) : 0;
     const rig = unitRig(t.unit, this.time, atk, windup, t.i * 1.7);
     const o = { ...rig.o, faceLeft: t.face < 0 };
+    if (t.unit === 'archer') this.drawBowstring(t, top, o, rig.parts[1].dy || 0, windup, atk);
     const glow = LEVEL_GLOW[t.level];
     if (glow) drawRigOutline(ctx, t.unit, t.x, top, o, rig.parts, glow[0], glow[1] * (0.75 + 0.25 * Math.sin(this.time * 3 + t.i)));
     const { w, h } = drawRig(ctx, t.unit, t.x, top, o, rig.parts);
@@ -609,7 +648,9 @@ export class Game {
     const pace = { wolf: 13, troll: 7.5, gargoyle: 6, goblin: 11, orc: 8 }[e.type] || 9;
     const rig = enemyRig(e.type, e.anim * pace, moving);
     const lift = e.def.flying ? LIFT : 0;
-    const o = { ...rig.o, faceLeft: e.dir < 0, white: e.flash > 0 };
+    const fade = Math.min(1, Math.max(0, (PATH_LEN - e.d) / GATE_FADE)); // уходит в темноту ворот
+    const o = { ...rig.o, faceLeft: e.dir < 0, white: e.flash > 0, alpha: fade };
+    if (fade < 1) ctx.globalAlpha = fade;
     if (!moving) o.rot = 0.12;
     if (e.slamAnim > 0) o.dy = (o.dy || 0) - Math.sin((1 - e.slamAnim / 0.45) * Math.PI) * 4; // подпрыгивает перед ударом
     const sw = e.h * 0.55;
@@ -627,6 +668,7 @@ export class Game {
       ctx.fillStyle = '#5a1414'; cell(ctx, bx, by, bw, 3 * PIX);
       ctx.fillStyle = e.def.boss ? '#f08a2a' : '#5fd04a'; if (e.hp > 0) cell(ctx, bx, by, bw * e.hp / e.max, 3 * PIX);
     }
+    ctx.globalAlpha = 1;
   }
 
   // павший враг заваливается набок и тает
