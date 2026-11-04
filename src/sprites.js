@@ -15,7 +15,7 @@ const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'lich
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
 
 // в какую сторону смотрит персонаж на исходной картинке
-const FACES_LEFT = { troll: true };
+const FACES_LEFT = {}; // все персонажи на исходных картинках смотрят вправо
 
 const imgs = {};   // персонажи — уже ужатые до сетки PIX
 const dims = {};   // их размер на карте в логических единицах
