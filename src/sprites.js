@@ -2,6 +2,9 @@
 // Логика игры работает в координатах 480×289, холст — 1036×624 (SCALE раз больше).
 
 export const SCALE = 1036 / 480;
+// спрайты хранятся в 3 раза крупнее игрового размера — для чёткости на плотных экранах
+const RES = 3;
+const UNIT = SCALE * RES; // пикселей картинки на логическую единицу
 
 const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'lich', 'dragon',
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
@@ -26,11 +29,11 @@ export function loadAssets() {
 export function image(name) { return imgs[name]; }
 
 // размер спрайта в логических единицах
-export function size(name) { return { w: imgs[name].width / SCALE, h: imgs[name].height / SCALE }; }
+export function size(name) { return { w: imgs[name].width / UNIT, h: imgs[name].height / UNIT }; }
 
 // pxPerUnit — сколько экранных пикселей приходится на логическую единицу
 export function setPixelDensity(pxPerUnit) {
-  const k = Math.max(1, Math.ceil(pxPerUnit / SCALE));
+  const k = Math.max(1, Math.ceil(pxPerUnit / UNIT));
   if (k !== prescale) { prescale = k; for (const key in cache) delete cache[key]; }
 }
 
@@ -60,7 +63,7 @@ export function sprite(name, faceLeft = false, white = false) {
 // opts: faceLeft, white, rot (поворот вокруг ног), sx/sy (растяжение), alpha, dx/dy (сдвиг)
 export function drawAt(ctx, name, x, y, o = {}) {
   const c = sprite(name, o.faceLeft, o.white);
-  const w = imgs[name].width / SCALE, h = imgs[name].height / SCALE;
+  const w = imgs[name].width / UNIT, h = imgs[name].height / UNIT;
   ctx.save();
   ctx.translate(x + (o.dx || 0), y + (o.dy || 0));
   if (o.rot) ctx.rotate(o.rot);

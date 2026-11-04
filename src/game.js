@@ -249,7 +249,7 @@ export class Game {
     } else if (t.unit === 'dragon') {
       const ax = target.x - ox, ay = ty - oy;
       const ang = Math.atan2(ay, ax);
-      Object.assign(t, { breath: 0.24, breathAng: ang, breathLen: s.range, mouthX: ox + t.face * 10, mouthY: oy - 2 });
+      Object.assign(t, { breath: 0.24, breathAng: ang, breathLen: s.range, mouthX: t.x + t.face * 12, mouthY: t.y - TOWER_TOP - 21 });
       for (const e of this.enemies) {
         if (!e.alive) continue;
         const ey = this.aimY(e);
@@ -262,7 +262,7 @@ export class Game {
       for (let i = 0; i < 9; i++) {
         const a = ang + (Math.random() - 0.5) * s.cone * 1.4;
         const v = 190 + Math.random() * 130;
-        this.fx.flame(ox + t.face * 10, oy - 2, Math.cos(a) * v, Math.sin(a) * v);
+        this.fx.flame(t.mouthX, t.mouthY, Math.cos(a) * v, Math.sin(a) * v);
       }
     }
   }
