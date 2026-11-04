@@ -211,7 +211,8 @@ export class Game {
     if (e.hp <= 0) {
       e.alive = false;
       this.gold += e.def.gold; this.kills++;
-      this.sfx(e.def.boss ? 'boom' : 'death');
+      this.sfx('death', e.type);
+      if (e.def.boss) this.sfx('boom');
       this.corpses.push({ type: e.type, x: e.x, y: e.y, dir: e.dir, flying: e.def.flying, t: 0 });
       const cols = { skeleton: ['#d8d2bc', '#9c9682'], goblin: ['#74b03e', '#3f7024'], wolf: ['#8a8a94', '#4f4f5a'],
         gargoyle: ['#8a8a94', '#5a5a66'], orc: ['#b4bcc6', '#3f7024'], troll: ['#74b03e', '#f3c843'] }[e.type];

@@ -191,9 +191,24 @@ function drum(vol, o = {}) {
   noise(0.12, { filter: 'lowpass', freq: 900 * p, vol: vol * 0.45, when: o.when, bus });
 }
 
+// крик / рык: пила с падающей высотой через «гласные» полосы (форманты)
+function voice(f0, f1, dur, formants, vol, when) {
+  const t = at(when);
+  const o = ac.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  vibrato(o, 25);
+  const g = ac.createGain(); env(g, t, vol, 0.02, dur);
+  for (const f of formants) {
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 5;
+    o.connect(bp); bp.connect(g);
+  }
+  g.connect(sfxBus);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+
 // ---------- звуки игры ----------
 // минимальный интервал между повторами, чтобы толпа башен не сливалась в шум
-const GAP = { arrow: 0.07, zap: 0.09, fire: 0.18, death: 0.06, rock: 0.09, throw: 0.1, click: 0.04 };
+const GAP = { arrow: 0.07, zap: 0.09, fire: 0.18, death: 0.08, rock: 0.09, throw: 0.1, click: 0.04 };
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 const SFX = {
@@ -222,9 +237,36 @@ const SFX = {
     noise(0.3, { freq: 220, q: 1, vol: 0.2, attack: 0.04 });
   },
   // падение врага: глухой удар и звяканье снаряжения
-  death() {
-    noise(0.14, { filter: 'lowpass', freq: 320, vol: 0.28 });
-    for (let i = 0; i < 2; i++) noise(0.05, { freq: rnd(2200, 4200), q: 12, vol: 0.05, when: 0.03 + i * rnd(0.03, 0.07) });
+  // гибель врага — у каждого вида свой голос; тело падает с глухим ударом
+  death(type) {
+    const k = rnd(0.9, 1.12); // чуть разная высота, чтобы толпа не звучала одинаково
+    noise(0.14, { filter: 'lowpass', freq: 320, vol: 0.22, when: 0.06 });
+    switch (type) {
+      case 'skeleton': // кости рассыпаются
+        for (let i = 0; i < 6; i++) noise(0.035, { freq: rnd(1300, 2600), q: 9, vol: 0.13, when: i * rnd(0.03, 0.06) });
+        break;
+      case 'goblin': // визг
+        voice(560 * k, 240 * k, 0.28, [950, 2100], 0.13);
+        break;
+      case 'wolf': // скулёж волка
+        voice(760 * k, 420 * k, 0.16, [850, 1700], 0.12);
+        voice(560 * k, 300 * k, 0.26, [850, 1700], 0.09, 0.15);
+        break;
+      case 'gargoyle': // каменный крик и осыпь
+        voice(900 * k, 420 * k, 0.22, [1400, 2800], 0.08);
+        noise(0.4, { filter: 'lowpass', freq: 700, to: 250, vol: 0.25, when: 0.05 });
+        for (let i = 0; i < 4; i++) noise(0.04, { freq: rnd(600, 1300), q: 6, vol: 0.12, when: 0.08 + i * rnd(0.04, 0.08) });
+        break;
+      case 'orc': // хрип и лязг доспеха
+        voice(150 * k, 75 * k, 0.38, [520, 1150], 0.18);
+        bell(rnd(1500, 1900), 0.25, { vol: 0.06, ratio: 2.76, index: 1, when: 0.12 });
+        break;
+      case 'troll': // рёв вождя
+        voice(120, 55, 0.9, [420, 950], 0.25);
+        break;
+      default:
+        voice(300 * k, 140 * k, 0.25, [700, 1400], 0.12);
+    }
   },
   // плотник: два удара молотом и аккорд арфы
   build() {
@@ -298,12 +340,12 @@ const SFX = {
   click() { noise(0.035, { freq: 2100, q: 4, vol: 0.14 }); thump(700, 400, 0.03, 0.04); },
 };
 
-export function sfx(name) {
+export function sfx(name, arg) {
   if (!ac || muted || !SFX[name]) return;
   const now = ac.currentTime;
   if (GAP[name] && now - (lastPlayed[name] || 0) < GAP[name]) return;
   lastPlayed[name] = now;
-  SFX[name]();
+  SFX[name](arg);
 }
 
 // ---------- фоновая музыка ----------
