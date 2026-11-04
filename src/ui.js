@@ -1,7 +1,7 @@
 import * as C from './config.js';
 import { Game } from './game.js';
 import { loadAssets, setPixelDensity, spriteURL } from './sprites.js';
-import { initAudio, sfx, setMuted, isMuted, setMusicMood } from './audio.js';
+import { initAudio, sfx, flame, setMuted, isMuted, setMusicMood } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), stage = $('stage'), overlay = $('overlay');
@@ -245,6 +245,7 @@ loadAssets().then(() => {
   });
   window.__game = game;
   game.sfx = sfx;
+  game.flame = flame;
   buildUnitButtons();
   fit();
   showStart();

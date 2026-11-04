@@ -12,6 +12,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.emit = emit || (() => {});
     this.sfx = () => {}; // звуки подключает интерфейс
+    this.flame = () => {}; // непрерывный звук пламени дракона
     this.bg = renderBackground();
     this.pxScale = SCALE; // экранных пикселей на логическую единицу, задаёт интерфейс
     this.reset();
@@ -116,7 +117,7 @@ export class Game {
 
   // ---------- обновление ----------
   update(rawDt) {
-    if (this.paused || this.phase === 'over') { this.fx.update(rawDt * 0.0); return; }
+    if (this.paused || this.phase === 'over') { for (const t of this.towers) this.flame(t.i, false); this.fx.update(rawDt * 0.0); return; }
     const dt = Math.min(rawDt, 0.05) * this.speed;
     this.time += dt;
     if (this.phase !== 'prep') this.playTime += dt;
@@ -240,6 +241,7 @@ export class Game {
     const s = this.stats(t);
     t.anim = Math.max(0, t.anim - dt);
     t.breath = Math.max(0, (t.breath || 0) - dt);
+    this.flame(t.i, t.unit === 'dragon' && t.breath > 0); // звук огня ровно столько, сколько видна струя
     if (t.unit === 'dragon' && t.breath > 0) { // огонь льётся непрерывно, пока дракон дышит
       t.fireAcc = (t.fireAcc || 0) + dt * 55; // клубов вдвое меньше, чтобы не закрывать врагов
       for (; t.fireAcc >= 1; t.fireAcc--) {
@@ -273,7 +275,6 @@ export class Game {
       target.dotT = s.dot; target.dotDps = s.dps;
       target.slowT = s.slowTime; target.slowK = s.slow;
     } else if (t.unit === 'dragon') {
-      this.sfx('fire');
       // пасть дракона — кончик морды (с учётом покачивания и рывка вперёд при выдохе);
       // пламя рождается чуть впереди неё, чтобы не закрывать голову
       const bob = Math.sin(this.time * 2.5 + t.i * 1.7) * 0.8;

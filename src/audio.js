@@ -208,7 +208,7 @@ function voice(f0, f1, dur, formants, vol, when) {
 
 // ---------- звуки игры ----------
 // минимальный интервал между повторами, чтобы толпа башен не сливалась в шум
-const GAP = { arrow: 0.07, hit: 0.05, zap: 0.12, fire: 0.8, death: 0.08, rock: 0.09, throw: 0.1, click: 0.04 };
+const GAP = { arrow: 0.07, hit: 0.05, zap: 0.12, death: 0.08, rock: 0.09, throw: 0.1, click: 0.04 };
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 const SFX = {
@@ -244,13 +244,6 @@ const SFX = {
     noise(0.36, { freq: 3300, to: 6200, q: 9, vol: 0.12, attack: 0.05, when: 0.02 });
     noise(0.42, { filter: 'highpass', freq: 5500, vol: 0.1, attack: 0.04 });
     noise(0.12, { filter: 'highpass', freq: 3500, vol: 0.07, when: 0.3 }); // пшш — ожог на цели
-  },
-  // дракон выпускает струю пламени: мягкое ровное «фшшшш», как из горелки — без треска и без рыка.
-  // Звук длинный и повторяется внахлёст, поэтому, пока дракон дышит, пламя гудит непрерывно и плавно затихает.
-  fire() {
-    noise(1.6, { filter: 'lowpass', freq: 2400, to: 1500, vol: 0.16, attack: 0.25, release: 0.9 });
-    noise(1.5, { freq: 1000, to: 800, q: 0.6, vol: 0.09, attack: 0.3, release: 0.9 });
-    noise(1.4, { filter: 'highpass', freq: 4500, vol: 0.025, attack: 0.3, release: 0.8 });
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — у каждого вида свой голос; тело падает с глухим ударом
@@ -355,6 +348,33 @@ const SFX = {
   // деревянный щелчок интерфейса
   click() { noise(0.035, { freq: 2100, q: 4, vol: 0.14 }); thump(700, 400, 0.03, 0.04); },
 };
+
+// Пламя дракона звучит, пока видна струя: game.js каждый кадр сообщает flame(id, горит ли).
+// Ровное «фшшшш», как из горелки: включается плавно вместе с огнём и затихает, когда огонь гаснет.
+const flames = {};
+export function flame(id, on) {
+  if (!ac) return;
+  const f = flames[id], t = ac.currentTime;
+  if (on && !f) {
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + 0.12);
+    g.connect(sfxBus);
+    const nodes = [];
+    for (const [type, freq, q, vol] of [['lowpass', 2300, 0.7, 0.16], ['bandpass', 950, 0.6, 0.09], ['highpass', 4500, 0.7, 0.025]]) {
+      const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+      const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = freq; fl.Q.value = q;
+      const v = ac.createGain(); v.gain.value = vol;
+      src.connect(fl); fl.connect(v); v.connect(g);
+      src.start(t, Math.random() * 0.5); nodes.push(src);
+    }
+    flames[id] = { g, nodes };
+  } else if (!on && f) {
+    f.g.gain.cancelScheduledValues(t);
+    f.g.gain.setValueAtTime(Math.max(0.0001, f.g.gain.value), t);
+    f.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    for (const n of f.nodes) n.stop(t + 0.35);
+    delete flames[id];
+  }
+}
 
 export function sfx(name, arg) {
   if (!ac || muted || !SFX[name]) return;
