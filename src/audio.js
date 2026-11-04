@@ -61,9 +61,17 @@ function sample(name, vol = 0.8, when = 0) {
   if (!set || !set.length) return false;
   const src = ac.createBufferSource(); src.buffer = set[Math.floor(Math.random() * set.length)];
   src.playbackRate.value = rnd(0.92, 1.08);
-  const g = ac.createGain(); g.gain.value = vol;
-  src.connect(g); g.connect(sfxBus);
-  src.start(at(when));
+  // упрощаем запись под стиль остальных звуков: без верхней детализации и низкого гула,
+  // только короткое начало крика с быстрым затуханием
+  const t = at(when), len = 0.55;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700; lp.Q.value = 0.5;
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 180;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol * 0.7, t);
+  g.gain.setValueAtTime(vol * 0.7, t + len * 0.55);
+  g.gain.linearRampToValueAtTime(0, t + len);
+  src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(sfxBus);
+  src.start(t); src.stop(t + len + 0.05);
   return true;
 }
 
