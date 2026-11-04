@@ -356,11 +356,11 @@ export function flame(id, on) {
   if (!ac) return;
   const f = flames[id], t = ac.currentTime;
   if (on && !f) {
-    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + 0.12);
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.4); // тише и плавнее нарастает
     g.connect(sfxBus);
     const nodes = [];
-    // огнемёт: глухой плотный поток — без верхов, основа в низах и середине
-    for (const [type, freq, q, vol] of [['lowpass', 850, 0.7, 0.26], ['bandpass', 300, 0.8, 0.2], ['lowpass', 150, 0.7, 0.18]]) {
+    // огнемёт: глухой басовый гул — только низы, никакого шипения
+    for (const [type, freq, q, vol] of [['lowpass', 380, 0.7, 0.24], ['bandpass', 170, 0.9, 0.24], ['lowpass', 90, 0.7, 0.3]]) {
       const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
       const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = freq; fl.Q.value = q;
       const v = ac.createGain(); v.gain.value = vol;
@@ -368,15 +368,15 @@ export function flame(id, on) {
       src.start(t, Math.random() * 0.5); nodes.push(src);
     }
     // лёгкое «дыхание» потока, чтобы звук жил, а не гудел ровно
-    const lf = ac.createOscillator(); lf.frequency.value = 6 + Math.random() * 2;
-    const lg = ac.createGain(); lg.gain.value = 0.15; lf.connect(lg); lg.connect(g.gain);
+    const lf = ac.createOscillator(); lf.frequency.value = 0.6 + Math.random() * 0.2; // медленное «дыхание» пламени
+    const lg = ac.createGain(); lg.gain.value = 0.12; lf.connect(lg); lg.connect(g.gain);
     lf.start(t); nodes.push(lf);
     flames[id] = { g, nodes };
   } else if (!on && f) {
     f.g.gain.cancelScheduledValues(t);
     f.g.gain.setValueAtTime(Math.max(0.0001, f.g.gain.value), t);
-    f.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-    for (const n of f.nodes) n.stop(t + 0.35);
+    f.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    for (const n of f.nodes) n.stop(t + 0.95);
     delete flames[id];
   }
 }
