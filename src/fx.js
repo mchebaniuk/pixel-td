@@ -1,4 +1,17 @@
 import { drawNumber } from './sprites.js';
+import { W, H } from './config.js';
+
+// палитра огня как на концепт-арте: контур, красный, оранжевый, жёлтый, ядро
+const FIRE = [['#6e160e', 1, 1], ['#d9401a', 1, 0], ['#ff8c1e', 0.74, 0], ['#ffd23f', 0.48, 0], ['#fff4c0', 0.24, 0]];
+
+// пиксельный круг на сетке 1×1 логическая единица
+function disc(c, x, y, r) {
+  const R = Math.ceil(r), cx = Math.round(x), cy = Math.round(y);
+  for (let j = -R; j <= R; j++) {
+    const w = Math.floor(Math.sqrt(Math.max(0, r * r - j * j)) + 0.35);
+    c.fillRect(cx - w, cy + j, w * 2 + 1, 1);
+  }
+}
 
 export class FX {
   constructor() { this.parts = []; this.nums = []; this.beams = []; this.shake = 0; }
@@ -16,6 +29,32 @@ export class FX {
   number(x, y, val, color = '#fff') {
     this.nums.push({ x, y, val: Math.round(val), life: 0.8, color });
   }
+  // огонь рисуется на маленьком холсте (1 пиксель = 1 логическая единица) и растягивается без сглаживания,
+  // поэтому выглядит как пиксель-арт: слои клубов от тёмного контура к светлому ядру
+  drawFire(ctx) {
+    const fires = this.parts.filter(p => p.fire);
+    if (!fires.length) return;
+    if (!this.fc) { this.fc = document.createElement('canvas'); this.fc.width = W; this.fc.height = H; this.fcx = this.fc.getContext('2d'); }
+    const c = this.fcx;
+    c.clearRect(0, 0, W, H);
+    for (const [col, k, extra] of FIRE) {
+      c.fillStyle = col;
+      for (const p of fires) {
+        if (p.spark) continue;
+        const age = 1 - p.life / p.max;
+        if (k < 0.5 && age > 0.55 + k) continue;      // яркое ядро только у свежих клубов
+        if (k < 0.3 && age > 0.3) continue;
+        disc(c, p.x, p.y, (2 + age * 3.6) * k + extra);
+      }
+    }
+    // искры
+    for (const p of fires) if (p.spark) { c.fillStyle = p.life / p.max > 0.5 ? '#fff4c0' : '#ffd23f'; c.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.fc, 0, 0, W, H);
+    ctx.restore();
+  }
+
   beam(x1, y1, x2, y2) { this.beams.push({ x1, y1, x2, y2, life: 0.18 }); }
 
   update(dt) {
@@ -45,18 +84,7 @@ export class FX {
       ctx.fillStyle = p.c;
       ctx.fillRect(Math.round(p.x), Math.round(p.y), p.s, p.s);
     }
-    // пламя светится: рисуем с наложением «lighter»
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (const p of this.parts) {
-      if (!p.fire) continue;
-      const k = 1 - p.life / p.max;
-      ctx.fillStyle = p.cols[Math.min(3, Math.floor(k * 4))];
-      ctx.globalAlpha = 0.85 * (1 - k * 0.6);
-      const s = 2.5 + k * 6;
-      ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
-    }
-    ctx.restore();
+    this.drawFire(ctx);
     for (const n of this.nums) {
       ctx.globalAlpha = Math.min(1, n.life * 3);
       drawNumber(ctx, '-' + n.val, n.x, n.y, n.color);

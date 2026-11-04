@@ -1,6 +1,7 @@
 import * as C from './config.js';
 import { Game } from './game.js';
 import { loadAssets, setPixelDensity } from './sprites.js';
+import { initAudio, sfx, setMuted, isMuted } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), stage = $('stage'), overlay = $('overlay');
@@ -98,9 +99,9 @@ function refreshTowerPanel() {
   if (!t || !t.unit) {
     up.disabled = sell.disabled = true; up.textContent = 'Улучшить'; sell.textContent = 'Продать';
     if (game.targeting !== 'meteor') {
-      info.innerHTML = t ? 'Пустой фундамент. Выбери защитника в панели <b>Постройка</b>'
-        : pick ? `Нажми на свободный фундамент, чтобы поставить: <b>${C.UNITS[pick].name}</b>`
-        : 'Нажми на фундамент у дороги или на готовую башню';
+      info.innerHTML = t ? 'Башня пустая. Выбери защитника в панели <b>Постройка</b>'
+        : pick ? `Нажми на пустую башню, чтобы поставить: <b>${C.UNITS[pick].name}</b>`
+        : 'Нажми на башню, чтобы посадить защитника или улучшить его';
     }
     return;
   }
@@ -140,10 +141,22 @@ document.querySelectorAll('.spell').forEach(b => b.onclick = () => {
   game.cast(k);
 });
 $('next').onclick = () => game.callWave();
+// звук: включается после первого действия игрока, выбор «выкл» запоминается
+try { setMuted(localStorage.getItem('td-muted') === '1'); } catch (e) { /* хранилище недоступно */ }
+function refreshSound() { $('sound').textContent = isMuted() ? 'Звук: выкл' : 'Звук: вкл'; $('sound').classList.toggle('on', !isMuted()); }
+function toggleSound() {
+  initAudio(); setMuted(!isMuted()); refreshSound();
+  try { localStorage.setItem('td-muted', isMuted() ? '1' : '0'); } catch (e) { /* хранилище недоступно */ }
+}
+$('sound').onclick = toggleSound;
+document.addEventListener('pointerdown', () => initAudio());
+document.addEventListener('click', ev => { if (ev.target.closest('button') && ev.target.id !== 'sound') sfx('click'); });
+refreshSound();
 $('speed').onclick = () => { game.speed = game.speed === 1 ? 2 : 1; dirty = true; };
 $('pause').onclick = () => { game.paused = !game.paused; dirty = true; };
 window.addEventListener('keydown', ev => {
   if (ev.key === ' ') { ev.preventDefault(); game.paused = !game.paused; dirty = true; }
+  if (ev.key === 'm' || ev.key === 'M' || ev.key === 'ь' || ev.key === 'Ь') toggleSound();
   if (ev.key === 'Escape') { game.targeting = null; game.selected = -1; pick = null; dirty = true; }
   for (const [k, sp] of Object.entries(C.SPELLS)) if (ev.key === sp.key && !$('sp-' + k).disabled) game.cast(k);
 });
@@ -163,11 +176,11 @@ function showStart() {
   overlay.hidden = false;
   overlay.innerHTML = `<div class="card frame">
     <h1>Стражи Рубежа</h1>
-    <p class="lead">Орда идёт к замку по лесной дороге. Ставь башни на каменные фундаменты и сажай на них защитников.</p>
+    <p class="lead">Орда идёт к замку по лесной дороге. Вдоль неё стоят каменные башни — посади на них защитников.</p>
     <div class="roster">${C.UNIT_ORDER.map(portrait).join('')}</div>
     <ul>
-      <li>Нажми на фундамент, затем выбери защитника в панели «Постройка»</li>
-      <li>Нажми на готовую башню, чтобы улучшить или продать её</li>
+      <li>Нажми на пустую башню с золотым плюсом, затем выбери защитника в панели «Постройка»</li>
+      <li>Нажми на башню с защитником, чтобы улучшить или отпустить его за золото</li>
       <li>6 волн, в каждой один вид врагов. Последним идёт тролль-вождь</li>
       <li>Мана копится сама: Метеор, Мороз и Ускорение справа внизу</li>
     </ul>
@@ -222,6 +235,7 @@ loadAssets().then(() => {
     if (ev === 'end') showEnd(data);
   });
   window.__game = game;
+  game.sfx = sfx;
   buildUnitButtons();
   fit();
   showStart();

@@ -75,12 +75,14 @@ export function drawTower(ctx, x, y, level, highlight) {
   }
 }
 
-// пустой фундамент: мерцающее кольцо-подсказка
-export function drawSlot(ctx, x, y, hover, t) {
-  const a = hover ? 1 : (Math.sin(t * 3) * 0.5 + 0.5) * 0.5 + 0.25;
-  ring(ctx, x, y, `rgba(255,214,90,${a})`);
-  ctx.fillStyle = `rgba(255,236,160,${a})`;
-  ctx.fillRect(x - 3, y - 1, 7, 2); ctx.fillRect(x - 1, y - 3, 2, 7);
+// пустая башня: золотой «плюс» над площадкой подсказывает, что сюда можно посадить защитника
+export function drawSlot(ctx, x, top, hover, t) {
+  const a = hover ? 1 : 0.5 + 0.35 * Math.sin(t * 3);
+  const y = top - 7 + Math.sin(t * 2.5) * 1.2;
+  ctx.fillStyle = `rgba(40,24,6,${a})`;
+  ctx.fillRect(x - 4.5, y - 1.5, 9, 3); ctx.fillRect(x - 1.5, y - 4.5, 3, 9);
+  ctx.fillStyle = `rgba(255,214,90,${a})`;
+  ctx.fillRect(x - 3.5, y - 0.75, 7, 1.5); ctx.fillRect(x - 0.75, y - 3.5, 1.5, 7);
 }
 
 function ring(ctx, x, y, color) {
