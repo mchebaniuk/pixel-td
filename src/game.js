@@ -206,7 +206,7 @@ export class Game {
     if (show) {
       e.flash = 0.08;
       if (amt >= 1) this.fx.number(e.x + (Math.random() * 6 - 3), this.aimY(e) - e.h * 0.6, amt,
-        type === 'fire' ? '#f3c843' : type === 'magic' ? '#d6a4ff' : '#ffffff');
+        type === 'fire' ? '#f3c843' : type === 'magic' ? '#ffe08a' : '#ffffff');
     }
     if (e.hp <= 0) {
       e.alive = false;
@@ -266,7 +266,8 @@ export class Game {
       this.projectiles.push({ kind: 'rock', sx: ox, sy: oy - 4, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg, splash: s.splash, stun: s.stun });
     } else if (t.unit === 'lich') {
       this.sfx('zap');
-      this.fx.beam(t.x + t.face * 6, t.y - TOWER_TOP - 25, target.x, ty);
+      const ps = size('lich'); // луч света бьёт из сферы на навершии посоха
+      this.fx.beam(t.x + t.face * ps.w * 0.375, t.y - TOWER_TOP - ps.h * 0.9, target.x, ty);
       this.damage(target, s.dmg, 'magic');
       target.dotT = s.dot; target.dotDps = s.dps;
       target.slowT = s.slowTime; target.slowK = s.slow;
@@ -402,12 +403,12 @@ export class Game {
       ctx.fillStyle = '#8a8478'; ctx.beginPath(); ctx.arc(rx, by, 3.4, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#b0aa9c'; ctx.fillRect(rx - 2, by - 2, 2, 1.5);
     }
-    if (t.unit === 'lich') { // свечение навершия посоха
+    if (t.unit === 'lich') { // свечение солнечной сферы на посохе жреца
       const glow = 0.35 + 0.25 * Math.sin(this.time * 4 + t.i) + atk * 0.6;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, glow);
-      const gx = t.x + t.face * w * 0.33, gy = ry - h * 0.95;
+      const gx = t.x + t.face * w * 0.375, gy = ry - h * 0.9;
       const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, 3 + atk * 4);
-      g.addColorStop(0, 'rgba(236,214,255,1)'); g.addColorStop(1, 'rgba(160,90,230,0)');
+      g.addColorStop(0, 'rgba(255,246,208,1)'); g.addColorStop(1, 'rgba(255,190,60,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(gx, gy, 3 + atk * 4, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
@@ -430,7 +431,7 @@ export class Game {
     const { w, h } = drawRig(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts);
     const top = e.y + 2 - lift - h + (o.dy || 0);
     if (e.slowT > 0 || this.slowT > 0) { ctx.fillStyle = 'rgba(127,214,255,0.9)'; ctx.fillRect(e.x - w / 2, e.y, w, 1); }
-    if (e.dotT > 0 && Math.random() < 0.15) this.fx.parts.push({ x: e.x + Math.random() * 8 - 4, y: top + h * 0.3, vx: 0, vy: -12, life: 0.4, max: 0.4, c: '#c58cff', g: 0, s: 1 });
+    if (e.dotT > 0 && Math.random() < 0.15) this.fx.parts.push({ x: e.x + Math.random() * 8 - 4, y: top + h * 0.3, vx: 0, vy: -12, life: 0.4, max: 0.4, c: '#ffd86a', g: 0, s: 1 });
     if (e.stunT > 0) { const a = this.time * 8; ctx.fillStyle = '#f3c843'; ctx.fillRect(e.x + Math.cos(a) * 5, top - 2, 1.5, 1.5); ctx.fillRect(e.x - Math.cos(a) * 5, top - 2, 1.5, 1.5); }
     if (e.hp < e.max || e.def.boss) {
       const bw = e.def.boss ? 26 : 13, bx = Math.round(e.x - bw / 2), by = Math.round(top - 4);

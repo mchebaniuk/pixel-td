@@ -38,7 +38,7 @@ export const UNITS = {
     ],
   },
   lich: {
-    name: 'Лич', desc: 'Тёмный луч: порча и замедление',
+    name: 'Жрец', desc: 'Луч света: жжёт и замедляет',
     cost: 80, type: 'magic', proj: 'beam', air: true,
     dot: 3, slow: 0.55, slowTime: 1.6,
     levels: [

@@ -75,10 +75,10 @@ export class FX {
     for (const b of this.beams) {
       const a = b.life / 0.18;
       ctx.globalAlpha = a;
-      line(ctx, b.x1, b.y1, b.x2, b.y2, '#4a2270', 3);
-      line(ctx, b.x1, b.y1, b.x2, b.y2, '#c58cff', 1);
+      line(ctx, b.x1, b.y1, b.x2, b.y2, '#8a5a12', 3);
+      line(ctx, b.x1, b.y1, b.x2, b.y2, '#ffe08a', 1);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ecd6ff'; ctx.fillRect(Math.round(b.x2) - 1, Math.round(b.y2) - 1, 3, 3);
+      ctx.fillStyle = '#fff6d0'; ctx.fillRect(Math.round(b.x2) - 1, Math.round(b.y2) - 1, 3, 3);
     }
     for (const p of this.parts) {
       if (p.fire) continue;

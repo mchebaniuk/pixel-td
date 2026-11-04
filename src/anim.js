@@ -50,10 +50,10 @@ export function unitRig(unit, t, atk, windup, seed) {
         { r: [0, 0.6, 1, 1] },
         { r: [0, 0, 1, 0.65], dy: breath * 0.45 },
       ] };
-    case 'lich':
-      return { o: { dy: -2 - Math.sin(t * 2 + seed) * 1.4 }, parts: [
-        { r: [0, 0.74, 1, 1], dx: Math.sin(t * 3 + seed) * 0.7 }, // край мантии колышется
-        { r: [0, 0, 1, 0.78], dy: breath * 0.3 },
+    case 'lich': // жрец стоит на площадке и спокойно дышит
+      return { o: {}, parts: [
+        { r: [0, 0.6, 1, 1] },
+        { r: [0, 0, 1, 0.62], dy: breath * 0.3 },
       ] };
     case 'dragon': {
       const flap = 0.5 + 0.5 * Math.sin(t * 5 + seed);
