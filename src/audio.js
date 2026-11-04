@@ -273,18 +273,15 @@ const SFX = {
     noise(0.08, { freq: 2200, q: 1.5, vol: 0.16 });
     for (let i = 0; i < 7; i++) noise(0.03, { freq: rnd(900, 2800), q: 5, vol: rnd(0.06, 0.12), when: 0.04 + i * rnd(0.025, 0.05) });
   },
-  // луч жреца: мягкий поток «фуух» (основа) + тихое «пиу» излучения — чистый мягкий тон плавно скользит вниз
-  // с лёгким мерцанием, и узкая полоса шума даёт свистящий оттенок луча
+  // луч жреца: басовый поток энергии «вуумм» — низкий шум плавно раскрывается и оседает, под ним мягкий
+  // глубокий тон. Без шипения, без высоких нот («пиу» владелец забраковал как пикалку) и без дрожания громкости
   zap() {
-    noise(0.65, { freq: 550, to: 1050, q: 2.2, vol: 0.15, attack: 0.15 });                       // поток
-    noise(0.7, { filter: 'lowpass', freq: 600, to: 350, vol: 0.09, attack: 0.18 });             // глухая основа
-    noise(0.45, { freq: 1900, to: 950, q: 9, vol: 0.07, attack: 0.03 });                        // свист луча
-    const t = at(0), o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
-    o.type = 'sine'; o.frequency.setValueAtTime(1250, t); o.frequency.exponentialRampToValueAtTime(480, t + 0.32); // «пиу»
-    vibrato(o, 18);                                                                              // мерцание излучения
-    f.type = 'lowpass'; f.frequency.value = 1800;
-    env(g, t, 0.05, 0.015, 0.4, 0.2);
-    o.connect(f); f.connect(g); g.connect(sfxBus); o.start(t); o.stop(t + 0.45);
+    noise(0.6, { filter: 'lowpass', freq: 280, to: 750, vol: 0.24, attack: 0.08 });   // тело луча, раскрывается
+    noise(0.65, { freq: 170, to: 130, q: 1.2, vol: 0.16, attack: 0.1 });               // глубина
+    const t = at(0), o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(62, t + 0.5); // мягкий басовый тон
+    env(g, t, 0.14, 0.06, 0.6, 0.3);
+    o.connect(g); g.connect(sfxBus); o.start(t); o.stop(t + 0.65);
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — настоящие записанные голоса (скелет, гоблин, волк, гаргулья, орк, тролль)
