@@ -6,6 +6,10 @@ export const SCALE = 1036 / 480;
 const RES = 3;
 const ZOOM = 0.9; // общий масштаб персонажей на карте
 const UNIT = SCALE * RES / ZOOM; // пикселей картинки на логическую единицу
+// Размер одного «пикселя» арта в логических единицах — такой же, как у нарисованного фона.
+// Персонажи и башня при загрузке ужимаются до этой сетки, поэтому всё на экране одного «зерна».
+export const PIX = 0.6;
+const RAW = ['bg_hd', 'foundation_hd']; // фон уже нарисован в нужном зерне
 
 const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'lich', 'dragon',
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
@@ -13,7 +17,8 @@ const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'lich
 // в какую сторону смотрит персонаж на исходной картинке
 const FACES_LEFT = { troll: true };
 
-const imgs = {};
+const imgs = {};   // персонажи — уже ужатые до сетки PIX
+const dims = {};   // их размер на карте в логических единицах
 const cache = {};
 let prescale = 1; // во сколько раз заранее увеличить спрайты (под плотность экрана)
 
@@ -21,20 +26,59 @@ export function loadAssets() {
   return Promise.all(NAMES.map(file => new Promise((resolve, reject) => {
     const n = file.replace(/\..*$/, '');
     const i = new Image();
-    i.onload = () => { imgs[n] = i; resolve(); };
+    i.onload = () => {
+      dims[n] = { w: i.width / UNIT, h: i.height / UNIT };
+      imgs[n] = RAW.includes(n) ? i : pixelate(i, Math.round(dims[n].w / PIX), Math.round(dims[n].h / PIX));
+      resolve();
+    };
     i.onerror = () => reject(new Error(`Не загрузилась картинка assets/${file}`));
     i.src = `assets/${file.includes('.') ? file : file + '.png'}`;
   })));
 }
 
+// Уменьшает картинку до gw×gh пикселей усреднением по квадратикам (с учётом прозрачности),
+// а край делает резким: пиксель либо целиком виден, либо пуст.
+function pixelate(img, gw, gh) {
+  const sc = document.createElement('canvas');
+  sc.width = img.width; sc.height = img.height;
+  const sx = sc.getContext('2d', { willReadFrequently: true });
+  sx.drawImage(img, 0, 0);
+  const src = sx.getImageData(0, 0, img.width, img.height).data;
+  const out = document.createElement('canvas');
+  out.width = gw; out.height = gh;
+  const ox = out.getContext('2d');
+  const dst = ox.createImageData(gw, gh), d = dst.data;
+  const kx = img.width / gw, ky = img.height / gh;
+  for (let y = 0; y < gh; y++) {
+    const y0 = Math.floor(y * ky), y1 = Math.max(y0 + 1, Math.floor((y + 1) * ky));
+    for (let x = 0; x < gw; x++) {
+      const x0 = Math.floor(x * kx), x1 = Math.max(x0 + 1, Math.floor((x + 1) * kx));
+      let r = 0, g = 0, b = 0, a = 0, n = 0;
+      for (let j = y0; j < y1; j++) for (let i = x0; i < x1; i++) {
+        const o = (j * img.width + i) * 4, al = src[o + 3];
+        r += src[o] * al; g += src[o + 1] * al; b += src[o + 2] * al; a += al; n++;
+      }
+      const o = (y * gw + x) * 4;
+      if (a / n < 110) continue; // почти пустой квадратик — прозрачный
+      d[o] = r / a; d[o + 1] = g / a; d[o + 2] = b / a; d[o + 3] = 255;
+    }
+  }
+  ox.putImageData(dst, 0, 0);
+  return out;
+}
+
 export function image(name) { return imgs[name]; }
 
+// картинка спрайта для интерфейса (портреты в панели), в том же пиксельном зерне
+const urls = {};
+export function spriteURL(name) { return urls[name] || (urls[name] = imgs[name].toDataURL()); }
+
 // размер спрайта в логических единицах
-export function size(name) { return { w: imgs[name].width / UNIT, h: imgs[name].height / UNIT }; }
+export function size(name) { return { ...dims[name] }; }
 
 // pxPerUnit — сколько экранных пикселей приходится на логическую единицу
 export function setPixelDensity(pxPerUnit) {
-  const k = Math.max(1, Math.ceil(pxPerUnit / UNIT));
+  const k = Math.max(1, Math.ceil(pxPerUnit * PIX));
   if (k !== prescale) { prescale = k; for (const key in cache) delete cache[key]; }
 }
 
@@ -64,7 +108,7 @@ export function sprite(name, faceLeft = false, white = false) {
 // opts: faceLeft, white, rot (поворот вокруг ног), sx/sy (растяжение), alpha, dx/dy (сдвиг)
 export function drawAt(ctx, name, x, y, o = {}) {
   const c = sprite(name, o.faceLeft, o.white);
-  const w = imgs[name].width / UNIT, h = imgs[name].height / UNIT;
+  const { w, h } = dims[name];
   ctx.save();
   ctx.translate(x + (o.dx || 0), y + (o.dy || 0));
   if (o.rot) ctx.rotate(o.rot);
@@ -80,7 +124,7 @@ export function drawAt(ctx, name, x, y, o = {}) {
 export function drawRig(ctx, name, x, y, o, parts) {
   const flip = !!o.faceLeft !== !!FACES_LEFT[name];
   const c = sprite(name, o.faceLeft, o.white);
-  const w = imgs[name].width / UNIT, h = imgs[name].height / UNIT;
+  const { w, h } = dims[name];
   ctx.save();
   ctx.translate(x + (o.dx || 0) * (o.faceLeft ? -1 : 1), y + (o.dy || 0));
   if (o.rot) ctx.rotate(o.faceLeft ? -o.rot : o.rot);

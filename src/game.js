@@ -271,10 +271,13 @@ export class Game {
       target.dotT = s.dot; target.dotDps = s.dps;
       target.slowT = s.slowTime; target.slowK = s.slow;
     } else if (t.unit === 'dragon') {
-      const ax = target.x - ox, ay = ty - oy;
-      const ang = Math.atan2(ay, ax);
       this.sfx('fire');
-      Object.assign(t, { breath: 0.24, breathAng: ang, breathLen: s.range, mouthX: t.x + t.face * 8, mouthY: t.y - TOWER_TOP - 18 });
+      // пасть дракона — кончик морды (с учётом покачивания и рывка вперёд при выдохе);
+      // пламя рождается чуть впереди неё, чтобы не закрывать голову
+      const bob = Math.sin(this.time * 2.5 + t.i * 1.7) * 0.8;
+      const mx = t.x + t.face * 12, my = t.y - TOWER_TOP - 20 + bob;
+      const ang = Math.atan2(ty - my, target.x - mx);
+      Object.assign(t, { breath: 0.24, breathAng: ang, breathLen: s.range, mouthX: mx + Math.cos(ang) * 4, mouthY: my + Math.sin(ang) * 4 });
       for (const e of this.enemies) {
         if (!e.alive) continue;
         const ey = this.aimY(e);

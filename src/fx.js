@@ -1,11 +1,12 @@
-import { drawNumber } from './sprites.js';
+import { drawNumber, PIX } from './sprites.js';
 import { W, H } from './config.js';
 
 // палитра огня как на концепт-арте: контур, красный, оранжевый, жёлтый, ядро
 const FIRE = [['#6e160e', 1, 1], ['#d9401a', 1, 0], ['#ff8c1e', 0.74, 0], ['#ffd23f', 0.48, 0], ['#fff4c0', 0.24, 0]];
 
-// пиксельный круг на сетке 1×1 логическая единица
+// пиксельный круг на сетке огня (клетка = PIX логических единиц, как «пиксель» фона и персонажей)
 function disc(c, x, y, r) {
+  x /= PIX; y /= PIX; r /= PIX;
   const R = Math.ceil(r), cx = Math.round(x), cy = Math.round(y);
   for (let j = -R; j <= R; j++) {
     const w = Math.floor(Math.sqrt(Math.max(0, r * r - j * j)) + 0.35);
@@ -29,14 +30,14 @@ export class FX {
   number(x, y, val, color = '#fff') {
     this.nums.push({ x, y, val: Math.round(val), life: 0.8, color });
   }
-  // огонь рисуется на маленьком холсте (1 пиксель = 1 логическая единица) и растягивается без сглаживания,
+  // огонь рисуется на маленьком холсте (1 пиксель = PIX логических единиц) и растягивается без сглаживания,
   // поэтому выглядит как пиксель-арт: слои клубов от тёмного контура к светлому ядру
   drawFire(ctx) {
     const fires = this.parts.filter(p => p.fire);
     if (!fires.length) return;
-    if (!this.fc) { this.fc = document.createElement('canvas'); this.fc.width = W; this.fc.height = H; this.fcx = this.fc.getContext('2d'); }
+    if (!this.fc) { this.fc = document.createElement('canvas'); this.fc.width = Math.ceil(W / PIX); this.fc.height = Math.ceil(H / PIX); this.fcx = this.fc.getContext('2d'); }
     const c = this.fcx;
-    c.clearRect(0, 0, W, H);
+    c.clearRect(0, 0, this.fc.width, this.fc.height);
     for (const [col, k, extra] of FIRE) {
       c.fillStyle = col;
       for (const p of fires) {
@@ -48,10 +49,10 @@ export class FX {
       }
     }
     // искры
-    for (const p of fires) if (p.spark) { c.fillStyle = p.life / p.max > 0.5 ? '#fff4c0' : '#ffd23f'; c.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+    for (const p of fires) if (p.spark) { c.fillStyle = p.life / p.max > 0.5 ? '#fff4c0' : '#ffd23f'; c.fillRect(Math.round(p.x / PIX), Math.round(p.y / PIX), 1, 1); }
     ctx.save();
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.fc, 0, 0, W, H);
+    ctx.drawImage(this.fc, 0, 0, this.fc.width * PIX, this.fc.height * PIX);
     ctx.restore();
   }
 
@@ -82,7 +83,8 @@ export class FX {
     for (const p of this.parts) {
       if (p.fire) continue;
       ctx.fillStyle = p.c;
-      ctx.fillRect(Math.round(p.x), Math.round(p.y), p.s, p.s);
+      const sz = Math.max(1, Math.round(p.s * 1.7)) * PIX;
+      ctx.fillRect(Math.round(p.x / PIX) * PIX, Math.round(p.y / PIX) * PIX, sz, sz);
     }
     this.drawFire(ctx);
     for (const n of this.nums) {

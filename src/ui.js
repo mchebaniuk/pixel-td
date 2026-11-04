@@ -1,7 +1,7 @@
 import * as C from './config.js';
 import { Game } from './game.js';
-import { loadAssets, setPixelDensity } from './sprites.js';
-import { initAudio, sfx, setMuted, isMuted } from './audio.js';
+import { loadAssets, setPixelDensity, spriteURL } from './sprites.js';
+import { initAudio, sfx, setMuted, isMuted, setMusicMood } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), stage = $('stage'), overlay = $('overlay');
@@ -20,7 +20,7 @@ document.querySelectorAll('canvas[data-icon]').forEach(c => {
   const x = c.getContext('2d');
   ICONS[c.dataset.icon].forEach((row, j) => [...row].forEach((ch, i) => { if (ICOL[ch]) { x.fillStyle = ICOL[ch]; x.fillRect(i, j, 1, 1); } }));
 });
-const portrait = k => `<img src="assets/${k}.png" alt="">`;
+const portrait = k => `<img src="${spriteURL(k)}" alt="">`;
 
 // ---------- состояние интерфейса ----------
 let game, dirty = true, pick = null;
@@ -216,6 +216,14 @@ function autoStep() {
   }
 }
 
+// музыка: спокойная между волнами, боевая во время волны, тяжёлая на боссе, тишина на финальном экране
+function musicMood() {
+  if (game.phase === 'over') return 'off';
+  if (game.phase !== 'spawning' && game.phase !== 'final') return 'calm';
+  const w = C.WAVES[game.waveIdx];
+  return w && C.ENEMIES[w.type].boss ? 'boss' : 'battle';
+}
+
 // ---------- цикл ----------
 let last = performance.now(), hudT = 0;
 function frame(now) {
@@ -223,6 +231,7 @@ function frame(now) {
   if (autoplay) autoStep();
   game.update(dt);
   game.draw();
+  setMusicMood(musicMood());
   hudT += dt;
   if (dirty || hudT > 0.2) { refreshHud(); dirty = false; hudT = 0; }
   requestAnimationFrame(frame);
