@@ -241,7 +241,7 @@ export class Game {
     t.anim = Math.max(0, t.anim - dt);
     t.breath = Math.max(0, (t.breath || 0) - dt);
     if (t.unit === 'dragon' && t.breath > 0) { // огонь льётся непрерывно, пока дракон дышит
-      t.fireAcc = (t.fireAcc || 0) + dt * 110;
+      t.fireAcc = (t.fireAcc || 0) + dt * 55; // клубов вдвое меньше, чтобы не закрывать врагов
       for (; t.fireAcc >= 1; t.fireAcc--) {
         const a = t.breathAng + (Math.random() - 0.5) * t.breathCone * 1.1;
         const v = 150 + Math.random() * 140, off = -Math.random() * v * dt; // после сдвига в этом же кадре клуб окажется у самой пасти

@@ -229,24 +229,33 @@ const SFX = {
     noise(0.35, { filter: 'lowpass', freq: 420, vol: 0.45 });
     noise(0.06, { freq: 2600, q: 2, vol: 0.12, when: 0.01 });
   },
-  // луч жреца: гудящий поток света с дрожанием и шипение ожога при попадании
+  // луч жреца: без нот — шумовой поток с «вжж»-проходом фильтра, низкий электрический гул,
+  // потрескивание и глухой удар в цель
   zap() {
-    const t = at(0), dur = 0.32;
-    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 4;
-    f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(2600, t + 0.08);
-    f.frequency.exponentialRampToValueAtTime(1500, t + dur);
-    const g = ac.createGain(); env(g, t, 0.11, 0.015, dur, 0.12);
-    const trem = ac.createGain(); trem.gain.value = 1;
-    const lf = ac.createOscillator(), lg = ac.createGain(); lf.frequency.value = 32; lg.gain.value = 0.45; // дрожание луча
-    lf.connect(lg); lg.connect(trem.gain);
-    for (const [fr, type] of [[rnd(440, 470), 'sawtooth'], [rnd(660, 700), 'sawtooth'], [1320, 'sine']]) {
-      const o = ac.createOscillator(); o.type = type; o.frequency.value = fr;
-      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
-    }
-    f.connect(trem); trem.connect(g); g.connect(sfxBus);
+    const t = at(0), dur = 0.42;
+    // дрожание, общее для гула и шипения: даёт «электрическое» жужжание
+    const lf = ac.createOscillator(); lf.frequency.value = rnd(38, 46);
+    const lg = ac.createGain(); lg.gain.value = 0.5; lf.connect(lg);
+    const buzz = ac.createGain(); buzz.gain.value = 0.6; lg.connect(buzz.gain);
+    const out = ac.createGain(); env(out, t, 1, 0.03, dur, 0.15);
+    buzz.connect(out); out.connect(sfxBus);
+    // поток: шум через резонансный фильтр, который проносится вверх и оседает
+    const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.2;
+    bp.frequency.setValueAtTime(500, t); bp.frequency.exponentialRampToValueAtTime(1900, t + 0.12);
+    bp.frequency.exponentialRampToValueAtTime(800, t + dur);
+    const ng = ac.createGain(); ng.gain.value = 0.32;
+    src.connect(bp); bp.connect(ng); ng.connect(buzz);
+    // низкий гул
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
+    const hg = ac.createGain(); hg.gain.value = 0.1;
+    for (const f of [55, 82.5]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(lp); o.start(t); o.stop(t + dur + 0.05); }
+    lp.connect(hg); hg.connect(buzz);
+    src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
     lf.start(t); lf.stop(t + dur + 0.05);
-    noise(0.22, { filter: 'highpass', freq: 4200, vol: 0.09, attack: 0.01, when: 0.04 }); // шипение ожога
-    bell(rnd(1700, 1900), 0.4, { vol: 0.03, ratio: 2.01, index: 0.6, when: 0.03 });
+    noise(dur, { filter: 'highpass', freq: 5000, vol: 0.035, attack: 0.05 }); // шипение по краям луча
+    for (let i = 0; i < 4; i++) noise(0.012, { filter: 'highpass', freq: 2500, vol: 0.09, when: rnd(0.04, dur - 0.05) }); // треск
+    noise(0.09, { filter: 'lowpass', freq: 1100, vol: 0.2, when: 0.05 }); // удар в цель
   },
   // рёв пламени
   fire() {

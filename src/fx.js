@@ -25,7 +25,7 @@ export class FX {
   }
   flame(x, y, vx, vy) {
     const cols = ['#fff3a0', '#f3c843', '#f08a2a', '#d0402e'];
-    this.parts.push({ x, y, vx, vy, life: 0.5, max: 0.5, fire: true, cols, g: -14, s: 3 });
+    this.parts.push({ x, y, vx, vy, life: 0.4, max: 0.4, fire: true, cols, g: -14, s: 3 });
   }
   number(x, y, val, color = '#fff') {
     this.nums.push({ x, y, val: Math.round(val), life: 0.8, color });
@@ -45,13 +45,14 @@ export class FX {
         const age = 1 - p.life / p.max;
         if (k < 0.5 && age > 0.55 + k) continue;      // яркое ядро только у свежих клубов
         if (k < 0.3 && age > 0.3) continue;
-        disc(c, p.x, p.y, (2 + age * 3.6) * k + extra);
+        disc(c, p.x, p.y, (1.4 + age * 2.3) * k + extra * 0.8);
       }
     }
     // искры
     for (const p of fires) if (p.spark) { c.fillStyle = p.life / p.max > 0.5 ? '#fff4c0' : '#ffd23f'; c.fillRect(Math.round(p.x / PIX), Math.round(p.y / PIX), 1, 1); }
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = 0.85; // сквозь пламя видно врагов
     ctx.drawImage(this.fc, 0, 0, this.fc.width * PIX, this.fc.height * PIX);
     ctx.restore();
   }
