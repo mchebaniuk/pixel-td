@@ -103,12 +103,12 @@ function refreshHud() {
 }
 
 // анонс следующей волны: кто идёт, сколько, чем опасен и когда
-const TRAITS = {
-  flying: ['летают — циклоп не достаёт', 'warn'],
-  armor: ['броня — магия и огонь сильнее', ''],
-  fast: ['быстрые', ''],
-  regen: ['лечится', ''],
-  boss: ['босс: бьёт по башням, звереет', 'boss'],
+const TRAITS = { // короткая метка, класс цвета, полное пояснение во всплывающей подсказке
+  flying: ['✈ летают', 'air', 'Летают — циклоп их не достаёт'],
+  armor: ['🛡 броня', 'armor', 'В броне — магия и огонь бьют сильнее стрел и камней'],
+  fast: ['» быстрые', 'fast', 'Быстрые — успевают проскочить'],
+  regen: ['✚ лечится', 'regen', 'Восстанавливает здоровье'],
+  boss: ['☠ босс', 'boss', 'Босс: бьёт по башням и звереет при половине здоровья'],
 };
 function refreshNextWave() {
   const box = $('nextwave'), n = C.WAVES[game.waveIdx + 1];
@@ -118,10 +118,11 @@ function refreshNextWave() {
   if (e.armor >= 0.3) tags.push(TRAITS.armor);
   if (e.speed >= 35) tags.push(TRAITS.fast);
   if (e.boss) tags.push(TRAITS.boss); else if (e.regen) tags.push(TRAITS.regen);
-  const when = game.phase === 'break' && game.enemies.length === 0 ? `<span class="time">${Math.ceil(game.breakT)} с</span>`
-    : game.phase === 'prep' ? '' : '<span class="lbl">после этой</span>';
-  const html = `<span class="lbl">Далее:</span>${portrait(n.type)}<span>${e.name}${n.count > 1 ? ' ×' + n.count : ''}</span>` +
-    tags.map(([t, c]) => `<span class="tag ${c}">${t}</span>`).join('') + when;
+  const counting = game.phase === 'break' && game.enemies.length === 0;
+  const when = game.phase === 'prep' ? '' : counting ? `<span class="nw-time">${Math.ceil(game.breakT)} с</span>` : '<span class="nw-wait">следом</span>';
+  const html = `<span class="nw-pic">${portrait(n.type)}</span><span class="nw-text"><span class="nw-lbl">Далее</span>` +
+    `<span class="nw-name">${e.name}${n.count > 1 ? ` <span class="nw-count">×${n.count}</span>` : ''}</span></span>` +
+    tags.map(([t, c, tip]) => `<span class="nw-tag ${c}" title="${tip}">${t}</span>`).join('') + when;
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
   box.hidden = false;
 }

@@ -370,8 +370,8 @@ export class Game {
     } else if (t.unit === 'cyclops') {
       const lead = posAt(target.d + target.def.speed * 0.6);
       this.sfx('throw');
-      const cs = size('cyclops'); // валун срывается с рук над головой
-      this.projectiles.push({ kind: 'rock', sx: t.x - t.face, sy: t.y - TOWER_TOP - cs.h - 3, gy0: t.y, spin: t.face, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg,
+      const cs = size('cyclops'); // валун срывается из ладоней (holdX/holdY считает cyclopsHands при отрисовке)
+      this.projectiles.push({ kind: 'rock', sx: t.holdX ?? t.x - t.face, sy: t.holdY ?? t.y - TOWER_TOP - cs.h - 3, gy0: t.y, spin: t.face, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg,
         splash: s.splash * (t.level >= 3 ? s.perkSplash : 1), stun: s.stun * (t.level >= 3 ? s.perkStun : 1) });
     } else if (t.unit === 'lich') {
       this.sfx('zap');
@@ -597,6 +597,47 @@ export class Game {
     ctx.restore();
   }
 
+  // Руки циклопа в движении: плечо → локоть → кулак, в цвет кожи с тёмным контуром, на пиксельной сетке.
+  // Считаются в координатах фигуры (смотрит вправо), затем — тот же наклон и отражение, что у всей фигуры
+  cyclopsArmPoints(arms, which) {
+    const { w, h } = size('cyclops');
+    const sh = which === 'near' ? [0.16, 0.24] : [0.84, 0.24];
+    const S = [-w / 2 + sh[0] * w, -h + sh[1] * h + (which === 'near' ? arms.dy : 0)];
+    const a1 = Math.PI / 2 + arms[which], a2 = a1 + arms.bend, L1 = 0.21 * h, L2 = 0.19 * h;
+    const E = [S[0] + Math.cos(a1) * L1, S[1] + Math.sin(a1) * L1];
+    const H = [E[0] + Math.cos(a2) * L2, E[1] + Math.sin(a2) * L2];
+    return { S, E, H, a2 };
+  }
+  withFigure(t, top, o, fn) {
+    const ctx = this.ctx, f = t.face < 0 ? -1 : 1;
+    ctx.save(); ctx.translate(t.x + (o.dx || 0) * f, top + (o.dy || 0)); ctx.scale(f, 1); if (o.rot) ctx.rotate(o.rot);
+    fn(ctx); ctx.restore();
+  }
+  drawCyclopsArm(t, top, o, arms, which) {
+    const { S, E, H } = this.cyclopsArmPoints(arms, which);
+    // цвета сняты с рук на картинке (с той же ночной тонировкой); дальняя рука в тени
+    const near = which === 'near';
+    const dark = '#24110a', base = near ? '#8c5642' : '#5a3226', shade = '#5a3226', lite = near ? '#b87a5a' : '#8c5642';
+    const seg = (A, B, col, wdt, ox = 0, oy = 0) => line(this.ctx, A[0] + ox, A[1] + oy, B[0] + ox, B[1] + oy, col, wdt);
+    this.withFigure(t, top, o, () => {
+      seg(S, E, dark, 6); seg(E, H, dark, 5);
+      seg(S, E, base, 4); seg(E, H, base, 3);
+      seg(S, E, shade, 1, 0.9, 0.6); seg(E, H, shade, 1, 0.7, 0.5);    // тень с нижней стороны
+      seg(S, E, lite, 1, -0.8, -0.4); seg(E, H, lite, 1, -0.6, -0.3);  // блик сверху: объём мышц
+      this.ctx.fillStyle = dark; pxEllipse(this.ctx, H[0], H[1], 2.4, 2.4);
+      this.ctx.fillStyle = base; pxEllipse(this.ctx, H[0], H[1], 1.7, 1.7);
+      this.ctx.fillStyle = lite; cell(this.ctx, H[0] - 1.2, H[1] - 1.2, 1.2, 0.6);
+    });
+  }
+  // валун — между кулаками, чуть дальше по направлению рук; возвращает мировые координаты
+  cyclopsHands(t, top, o, rig) {
+    const a = this.cyclopsArmPoints(rig.arms, 'near'), b = this.cyclopsArmPoints(rig.arms, 'far');
+    const ang = (a.a2 + b.a2) / 2;
+    const lx = (a.H[0] + b.H[0]) / 2 + Math.cos(ang) * 3.2, ly = (a.H[1] + b.H[1]) / 2 + Math.sin(ang) * 3.2;
+    const r = o.rot || 0, c = Math.cos(r), s = Math.sin(r), f = t.face < 0 ? -1 : 1;
+    return { x: t.x + (o.dx || 0) * f + (lx * c - ly * s) * f, y: top + (o.dy || 0) + lx * s + ly * c };
+  }
+
   drawRange(x, y, r, color = '#fff3c0') {
     const ctx = this.ctx;
     ctx.fillStyle = 'rgba(255,240,180,0.07)';
@@ -622,17 +663,19 @@ export class Game {
     if (t.unit === 'archer') this.drawBowstring(t, top, o, rig.parts[1].dy || 0, windup, atk);
     const glow = LEVEL_GLOW[t.level];
     if (glow) drawRigOutline(ctx, t.unit, t.x, top, o, rig.parts, glow[0], glow[1] * (0.75 + 0.25 * Math.sin(this.time * 3 + t.i)));
+    if (rig.arms?.active) this.drawCyclopsArm(t, top, o, rig.arms, 'far');  // дальняя рука — за туловищем
     const { w, h } = drawRig(ctx, t.unit, t.x, top, o, rig.parts);
+    if (rig.arms?.active) this.drawCyclopsArm(t, top, o, rig.arms, 'near'); // ближняя — поверх
     if (t.stunT > 0) { // оглушён ударом тролля: звёздочки над головой
       const a = this.time * 7;
       ctx.fillStyle = '#f3c843';
       for (let i = 0; i < 3; i++) cell(ctx, t.x + Math.cos(a + i * 2.1) * 6, top - h - 2 + Math.sin(a + i * 2.1) * 1.5, 2 * PIX, 2 * PIX);
     }
     const ry = top + (o.dy || 0);
-    if (t.unit === 'cyclops' && windup > 0 && !this.cyclopsHasBoulder) { // валун над головой перед броском
-      const k = windup * windup * (3 - 2 * windup); // поднимается вместе с руками: от груди до места над головой
-      const rx = t.x + t.face * (3 - 4 * k), by = ry - h * 0.45 - (h * 0.55 + 3) * k;
-      drawBoulder(ctx, rx, by, 0);
+    if (t.unit === 'cyclops' && windup > 0 && !this.cyclopsHasBoulder) { // валун лежит в ладонях и поднимается вместе с руками
+      const hold = this.cyclopsHands(t, top, o, rig);
+      t.holdX = hold.x; t.holdY = hold.y;
+      drawBoulder(ctx, hold.x, hold.y, 0);
     }
     if (t.unit === 'lich') { // свечение солнечной сферы на посохе жреца
       const glow = 0.35 + 0.25 * Math.sin(this.time * 4 + t.i) + atk * 0.6;

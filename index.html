@@ -48,14 +48,24 @@
   .pill.life { color: #ff8a7a; }
   #wave { font-family: var(--font); font-size: 15px; }
   #wave b { color: var(--gold); font-family: var(--pixel); font-size: 12px; font-weight: 400; }
-  /* анонс следующей волны */
-  #nextwave { font-family: var(--font); font-size: 13px; gap: 6px; padding: 3px 10px 3px 6px; }
-  #nextwave img { height: 24px; image-rendering: pixelated; }
-  #nextwave .lbl { color: var(--muted); }
-  #nextwave .tag { font-size: 11px; padding: 1px 6px; border-radius: 2px; background: #2b3247; color: var(--ink); white-space: nowrap; }
-  #nextwave .tag.warn { background: #5a2a1a; color: #ffc8a8; }
-  #nextwave .tag.boss { background: #6a1a14; color: #ffd0c0; }
-  #nextwave .time { font-family: var(--pixel); font-size: 11px; color: var(--gold); }
+  /* анонс следующей волны — в стиле карточек нижней панели */
+  #nextwave { font-family: var(--font); gap: 8px; padding: 0 10px 0 4px; }
+  #nextwave .nw-pic { width: 26px; height: 26px; flex: none; display: grid; place-items: end center; overflow: hidden; border-radius: 3px;
+    background: radial-gradient(ellipse at 50% 70%, #3a4668 0%, #161b29 75%); border: 2px solid #0e1119; box-shadow: inset 0 0 0 1px #4d5777; }
+  #nextwave .nw-pic img { height: 24px; max-width: 24px; object-fit: contain; image-rendering: pixelated; }
+  #nextwave .nw-text { display: flex; flex-direction: column; line-height: 1.05; }
+  #nextwave .nw-lbl { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  #nextwave .nw-name { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+  #nextwave .nw-count { font-family: var(--pixel); font-size: 9px; color: var(--gold); }
+  #nextwave .nw-tag { font-size: 11px; font-weight: 700; line-height: 1; padding: 4px 7px; border-radius: 10px; white-space: nowrap;
+    background: #1a2030; color: var(--ink); box-shadow: inset 0 0 0 1px #3b4563; cursor: help; }
+  #nextwave .nw-tag.air { color: #9fd0ff; box-shadow: inset 0 0 0 1px #2e5a8a; background: #15233a; }
+  #nextwave .nw-tag.armor { color: #d6dbe6; box-shadow: inset 0 0 0 1px #5a6378; background: #222836; }
+  #nextwave .nw-tag.fast { color: #ffd68a; box-shadow: inset 0 0 0 1px #6a5422; background: #2a2414; }
+  #nextwave .nw-tag.regen { color: #a8f07a; box-shadow: inset 0 0 0 1px #3a6a2a; background: #16261a; }
+  #nextwave .nw-tag.boss { color: #ffb0a0; box-shadow: inset 0 0 0 1px #8a2a22; background: #2e1412; }
+  #nextwave .nw-time { font-family: var(--pixel); font-size: 10px; color: #1a1206; background: var(--gold); padding: 4px 6px; border-radius: 3px; box-shadow: inset 0 -2px 0 #9a6b1c; }
+  #nextwave .nw-wait { font-size: 11px; font-weight: 500; color: var(--muted); }
   .unit, .spell { position: relative; }
   /* звёзды на финальном экране */
   .stars { display: flex; gap: 8px; font-size: 34px; line-height: 1; }
@@ -200,7 +210,7 @@
     .spell { width: 64px; }
     #bottom .build { grid-column: 1 / -1; }
     .pill { font-size: 11px; padding: 4px 8px; }
-    #nextwave .tag:not(.boss):not(.warn) { display: none; }
+    #nextwave .nw-tag:not(.boss):not(.air) { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { #banner { animation-duration: 0.01s; animation-fill-mode: none; } }
 </style>

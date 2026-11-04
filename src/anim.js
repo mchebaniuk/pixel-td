@@ -97,15 +97,17 @@ export function unitRig(unit, t, atk, windup, seed) {
     }
     case 'cyclops': { // поднимает валун над головой и швыряет его вперёд всем корпусом
       const up = ease(windup), hit = atk;
-      // руки: замах вверх через перёд; на броске проходят вперёд и вниз
-      const idle = Math.sin(t * 1.6 + seed) * 0.06 * (1 - up);    // в покое руки чуть качаются
-      const arm = -2.7 * Math.max(up, hit * hit * 0.9) + idle;
-      return { o: { rot: -0.12 * up + 0.22 * hit + Math.sin(t * 0.9 + seed) * 0.02, dx: -0.8 * up + 2 * hit }, parts: [ // переминается
-        { r: [0.8, 0.18, 1, 0.62], rot: arm * 1.08, at: [0.84, 0.22] },             // дальняя рука
-        { r: [0, 0.62, 1, 1], sy: 1 - 0.06 * up, pivot: 'top' },                      // ноги приседают на замахе
-        { r: [0.2, 0, 0.8, 0.64], dy: breath * 0.45 + 1.2 * up - 0.8 * hit },         // голова и торс
-        { r: [0, 0.18, 0.2, 0.62], rot: arm, at: [0.16, 0.22], dy: 1.2 * up - 0.8 * hit }, // ближняя рука
-      ] };
+      // угол рук от плеча: 0 — висят вниз, −2.7 — подняты над головой (через перёд); на броске идут вперёд и вниз
+      const arm = -2.7 * Math.max(up, hit * hit * 0.9);
+      const active = arm < -0.12;                     // в движении руки рисуются заново целиком (game.js, drawCyclopsArm)
+      const bodyDy = breath * 0.45 + 1.2 * up - 0.8 * hit;
+      const parts = [
+        { r: [0, 0.62, 1, 1], sy: 1 - 0.06 * up, pivot: 'top' },  // ноги приседают на замахе
+        { r: [0.2, 0, 0.8, 0.64], dy: bodyDy },                   // голова и торс
+      ];
+      if (!active) parts.push({ r: [0, 0.18, 0.2, 0.62], dy: bodyDy }, { r: [0.8, 0.18, 1, 0.62], dy: breath * 0.45 }); // руки из картинки
+      return { o: { rot: -0.12 * up + 0.22 * hit + Math.sin(t * 0.9 + seed) * 0.02, dx: -0.8 * up + 2 * hit }, parts,
+        arms: { active, far: arm * 1.06, near: arm, bend: -0.7 * Math.max(up, hit * 0.6), dy: bodyDy } };
     }
     case 'lich': { // жрец поднимает посох перед лучом и вскидывает его при выстреле; подол колышется
       const lift = 1.2 * ease(windup) + 1.6 * atk;
