@@ -273,11 +273,18 @@ const SFX = {
     noise(0.08, { freq: 2200, q: 1.5, vol: 0.16 });
     for (let i = 0; i < 7; i++) noise(0.03, { freq: rnd(900, 2800), q: 5, vol: rnd(0.06, 0.12), when: 0.04 + i * rnd(0.025, 0.05) });
   },
-  // луч жреца: тихое мягкое «фуух» — широкая низкая полоса шума плавно приподнимается и оседает;
-  // ни нот, ни свиста, ни верхнего шипения
+  // луч жреца: мягкий поток «фуух» (основа) + тихое «пиу» излучения — чистый мягкий тон плавно скользит вниз
+  // с лёгким мерцанием, и узкая полоса шума даёт свистящий оттенок луча
   zap() {
-    noise(0.65, { freq: 550, to: 1050, q: 2.2, vol: 0.09, attack: 0.18 });
-    noise(0.7, { filter: 'lowpass', freq: 600, to: 350, vol: 0.06, attack: 0.2 });
+    noise(0.65, { freq: 550, to: 1050, q: 2.2, vol: 0.15, attack: 0.15 });                       // поток
+    noise(0.7, { filter: 'lowpass', freq: 600, to: 350, vol: 0.09, attack: 0.18 });             // глухая основа
+    noise(0.45, { freq: 1900, to: 950, q: 9, vol: 0.07, attack: 0.03 });                        // свист луча
+    const t = at(0), o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+    o.type = 'sine'; o.frequency.setValueAtTime(1250, t); o.frequency.exponentialRampToValueAtTime(480, t + 0.32); // «пиу»
+    vibrato(o, 18);                                                                              // мерцание излучения
+    f.type = 'lowpass'; f.frequency.value = 1800;
+    env(g, t, 0.05, 0.015, 0.4, 0.2);
+    o.connect(f); f.connect(g); g.connect(sfxBus); o.start(t); o.stop(t + 0.45);
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — настоящие записанные голоса (скелет, гоблин, волк, гаргулья, орк, тролль)
