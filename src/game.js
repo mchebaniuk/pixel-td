@@ -1,5 +1,6 @@
 import * as C from './config.js';
-import { drawAt, size, SCALE } from './sprites.js';
+import { drawAt, drawRig, size, SCALE } from './sprites.js';
+import { unitRig, enemyRig } from './anim.js';
 import { PATH_LEN, posAt, SLOTS, renderBackground, drawTower, drawSlot, TOWER_TOP } from './map.js';
 
 const LIFT = 18; // высота полёта гаргулий
@@ -228,13 +229,14 @@ export class Game {
     t.anim = Math.max(0, t.anim - dt);
     t.breath = Math.max(0, (t.breath || 0) - dt);
     t.cd = Math.max(0, t.cd - dt * (this.hasteT > 0 ? C.SPELLS.haste.mult : 1));
-    if (t.cd > 0) return;
     const target = this.inRange(t, s);
-    if (!target) return;
+    t.hasTarget = !!target;
+    if (target) t.face = target.x < t.x ? -1 : 1;
+    if (t.cd > 0 || !target) return;
     t.cd = s.rate;
     t.face = target.x < t.x ? -1 : 1;
     t.anim = 0.3;
-    const ox = t.x + t.face * 6, oy = t.y - TOWER_TOP - 14;
+    const ox = t.x + t.face * 6, oy = t.y - TOWER_TOP - 13;
     const ty = this.aimY(target);
     if (t.unit === 'archer') {
       this.projectiles.push({ kind: 'arrow', x: ox, y: oy, target, tx: target.x, ty, speed: 220, dmg: s.dmg });
@@ -242,14 +244,14 @@ export class Game {
       const lead = posAt(target.d + target.def.speed * 0.6);
       this.projectiles.push({ kind: 'rock', sx: ox, sy: oy - 4, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg, splash: s.splash, stun: s.stun });
     } else if (t.unit === 'lich') {
-      this.fx.beam(t.x + t.face * 9, t.y - TOWER_TOP - 22, target.x, ty);
+      this.fx.beam(t.x + t.face * 6, t.y - TOWER_TOP - 25, target.x, ty);
       this.damage(target, s.dmg, 'magic');
       target.dotT = s.dot; target.dotDps = s.dps;
       target.slowT = s.slowTime; target.slowK = s.slow;
     } else if (t.unit === 'dragon') {
       const ax = target.x - ox, ay = ty - oy;
       const ang = Math.atan2(ay, ax);
-      Object.assign(t, { breath: 0.24, breathAng: ang, breathLen: s.range, mouthX: t.x + t.face * 12, mouthY: t.y - TOWER_TOP - 21 });
+      Object.assign(t, { breath: 0.24, breathAng: ang, breathLen: s.range, mouthX: t.x + t.face * 8, mouthY: t.y - TOWER_TOP - 18 });
       for (const e of this.enemies) {
         if (!e.alive) continue;
         const ey = this.aimY(e);
@@ -361,55 +363,45 @@ export class Game {
     if (!t.unit) { drawSlot(ctx, t.x, t.y, hl, this.time + t.i); return; }
     drawTower(ctx, t.x, t.y, t.level, hl);
     const top = t.y - TOWER_TOP;
-    const breath = Math.sin(this.time * 2.4 + t.i * 1.7);
-    const atk = t.anim / 0.3; // 1 → 0 сразу после выстрела
-    const o = { faceLeft: t.face < 0, sy: 1 + breath * 0.025, sx: 1 - breath * 0.012 };
-    const s = this.stats(t);
-    if (t.unit === 'archer') {
-      o.dx = -t.face * 2 * atk;                       // отдача лука
-    } else if (t.unit === 'cyclops') {
-      const windup = Math.min(1, Math.max(0, 1 - t.cd / 0.6));  // замах перед броском
-      o.rot = -t.face * 0.14 * windup + t.face * 0.2 * atk;
-    } else if (t.unit === 'lich') {
-      o.dy = -2 - Math.sin(this.time * 2 + t.i) * 1.5;  // левитирует
-    } else if (t.unit === 'dragon') {
-      o.dy = Math.sin(this.time * 4 + t.i) * 1.5;
-      o.sy = 1 + Math.sin(this.time * 9 + t.i) * 0.05; // взмахи крыльями
-      o.dx = t.face * 2 * Math.min(1, atk * 2);
+    const atk = t.anim / 0.3;
+    const windup = t.hasTarget ? Math.min(1, Math.max(0, 1 - t.cd / 0.5)) : 0;
+    const rig = unitRig(t.unit, this.time, atk, windup, t.i * 1.7);
+    const o = { ...rig.o, faceLeft: t.face < 0 };
+    const { w, h } = drawRig(ctx, t.unit, t.x, top, o, rig.parts);
+    const ry = top + (o.dy || 0);
+    if (t.unit === 'cyclops' && windup > 0 && !this.cyclopsHasBoulder) { // валун над головой перед броском
+      const rx = t.x - t.face * 3 * windup, by = ry - h + 2 - 6 * windup;
+      ctx.fillStyle = '#2e2c30'; ctx.beginPath(); ctx.arc(rx, by, 4.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8a8478'; ctx.beginPath(); ctx.arc(rx, by, 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#b0aa9c'; ctx.fillRect(rx - 2, by - 2, 2, 1.5);
     }
-    const { h } = drawAt(ctx, t.unit, t.x, top, o);
-    if (t.unit === 'cyclops' && t.cd < 0.6) { // валун над головой
-      const k = Math.min(1, 1 - t.cd / 0.6), rx = t.x - t.face * 3 * k, ry = top - h + 2 - 6 * k;
-      ctx.fillStyle = '#2e2c30'; ctx.beginPath(); ctx.arc(rx, ry, 4.2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#8a8478'; ctx.beginPath(); ctx.arc(rx, ry, 3.4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#b0aa9c'; ctx.fillRect(rx - 2, ry - 2, 2, 1.5);
-    }
-    if (t.unit === 'lich' && atk > 0) { // вспышка на навершии посоха
-      ctx.globalAlpha = atk; ctx.fillStyle = '#d6a4ff';
-      ctx.beginPath(); ctx.arc(t.x + t.face * 9, top - h + 6 + (o.dy || 0), 3 + atk * 3, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
+    if (t.unit === 'lich') { // свечение навершия посоха
+      const glow = 0.35 + 0.25 * Math.sin(this.time * 4 + t.i) + atk * 0.6;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, glow);
+      const gx = t.x + t.face * w * 0.33, gy = ry - h * 0.95;
+      const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, 3 + atk * 4);
+      g.addColorStop(0, 'rgba(236,214,255,1)'); g.addColorStop(1, 'rgba(160,90,230,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(gx, gy, 3 + atk * 4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
     if (this.hasteT > 0 && Math.floor(this.time * 8) % 2) {
-      ctx.fillStyle = '#7af4ff'; ctx.fillRect(t.x - 14, top - h * 0.6, 1, 3); ctx.fillRect(t.x + 14, top - h * 0.4, 1, 3);
+      ctx.fillStyle = '#7af4ff'; ctx.fillRect(t.x - 13, ry - h * 0.6, 1, 3); ctx.fillRect(t.x + 13, ry - h * 0.4, 1, 3);
     }
   }
 
   drawEnemy(e) {
     const ctx = this.ctx;
     const moving = e.stunT <= 0;
-    const pace = { wolf: 13, troll: 5, gargoyle: 6, goblin: 11 }[e.type] || 9;
-    const ph = e.anim * pace;
-    const step = moving ? Math.abs(Math.sin(ph)) : 0;
-    const lift = e.def.flying ? LIFT + Math.sin(e.anim * 4) * 1.5 : step * (e.type === 'troll' ? 0.8 : 1.4);
-    const o = { faceLeft: e.dir < 0, white: e.flash > 0 };
-    if (e.def.flying) { const f = Math.sin(e.anim * 16); o.sy = 1 + f * 0.09; o.sx = 1 - f * 0.05; }
-    else if (moving) o.rot = Math.sin(ph) * (e.type === 'troll' ? 0.04 : 0.07);
-    else o.rot = 0.12 * (e.dir < 0 ? -1 : 1);
+    const pace = { wolf: 13, troll: 6, gargoyle: 6, goblin: 11, orc: 8 }[e.type] || 9;
+    const rig = enemyRig(e.type, e.anim * pace, moving);
+    const lift = e.def.flying ? LIFT : 0;
+    const o = { ...rig.o, faceLeft: e.dir < 0, white: e.flash > 0 };
+    if (!moving) o.rot = 0.12;
     const sw = e.h * 0.55;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + 1, sw / 2, 2, 0, 0, Math.PI * 2); ctx.fill();
-    const { w, h } = drawAt(ctx, e.type, e.x, e.y + 2 - lift, o);
-    const top = e.y + 2 - lift - h;
+    const { w, h } = drawRig(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts);
+    const top = e.y + 2 - lift - h + (o.dy || 0);
     if (e.slowT > 0 || this.slowT > 0) { ctx.fillStyle = 'rgba(127,214,255,0.9)'; ctx.fillRect(e.x - w / 2, e.y, w, 1); }
     if (e.dotT > 0 && Math.random() < 0.15) this.fx.parts.push({ x: e.x + Math.random() * 8 - 4, y: top + h * 0.3, vx: 0, vy: -12, life: 0.4, max: 0.4, c: '#c58cff', g: 0, s: 1 });
     if (e.stunT > 0) { const a = this.time * 8; ctx.fillStyle = '#f3c843'; ctx.fillRect(e.x + Math.cos(a) * 5, top - 2, 1.5, 1.5); ctx.fillRect(e.x - Math.cos(a) * 5, top - 2, 1.5, 1.5); }

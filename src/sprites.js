@@ -4,7 +4,8 @@
 export const SCALE = 1036 / 480;
 // спрайты хранятся в 3 раза крупнее игрового размера — для чёткости на плотных экранах
 const RES = 3;
-const UNIT = SCALE * RES; // пикселей картинки на логическую единицу
+const ZOOM = 0.9; // общий масштаб персонажей на карте
+const UNIT = SCALE * RES / ZOOM; // пикселей картинки на логическую единицу
 
 const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'lich', 'dragon',
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
@@ -71,6 +72,29 @@ export function drawAt(ctx, name, x, y, o = {}) {
   if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(c, -w / 2, -h, w, h);
+  ctx.restore();
+  return { w, h };
+}
+
+// рисует спрайт по частям (см. anim.js): каждая часть со своим сдвигом и растяжением
+export function drawRig(ctx, name, x, y, o, parts) {
+  const flip = !!o.faceLeft !== !!FACES_LEFT[name];
+  const c = sprite(name, o.faceLeft, o.white);
+  const w = imgs[name].width / UNIT, h = imgs[name].height / UNIT;
+  ctx.save();
+  ctx.translate(x + (o.dx || 0) * (o.faceLeft ? -1 : 1), y + (o.dy || 0));
+  if (o.rot) ctx.rotate(o.faceLeft ? -o.rot : o.rot);
+  if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  for (const p of parts) {
+    let [x0, y0, x1, y1] = p.r;
+    if (flip) [x0, x1] = [1 - x1, 1 - x0];
+    const sy = p.sy ?? 1, ph = (y1 - y0) * h;
+    const top = -h + y0 * h + (p.pivot === 'bottom' ? ph * (1 - sy) : 0);
+    const dx = (p.dx || 0) * (o.faceLeft ? -1 : 1);
+    ctx.drawImage(c, x0 * c.width, y0 * c.height, (x1 - x0) * c.width, (y1 - y0) * c.height,
+      -w / 2 + x0 * w + dx, top + (p.dy || 0), (x1 - x0) * w, ph * sy);
+  }
   ctx.restore();
   return { w, h };
 }
