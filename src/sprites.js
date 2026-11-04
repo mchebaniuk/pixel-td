@@ -134,10 +134,14 @@ export function drawRig(ctx, name, x, y, o, parts) {
     let [x0, y0, x1, y1] = p.r;
     if (flip) [x0, x1] = [1 - x1, 1 - x0];
     const sy = p.sy ?? 1, ph = (y1 - y0) * h;
+    const sx = p.sx ?? 1, pw = (x1 - x0) * w;
     const top = -h + y0 * h + (p.pivot === 'bottom' ? ph * (1 - sy) : 0);
     const dx = (p.dx || 0) * (o.faceLeft ? -1 : 1);
+    // pivotX — край, за который часть «прикреплена» (для крыла — плечо); при отражении край меняется
+    const anchor = flip ? { left: 'right', right: 'left' }[p.pivotX] : p.pivotX;
+    const left = -w / 2 + x0 * w + (anchor === 'right' ? pw * (1 - sx) : 0);
     ctx.drawImage(c, x0 * c.width, y0 * c.height, (x1 - x0) * c.width, (y1 - y0) * c.height,
-      -w / 2 + x0 * w + dx, top + (p.dy || 0), (x1 - x0) * w, ph * sy);
+      left + dx, top + (p.dy || 0), pw * sx, ph * sy);
   }
   ctx.restore();
   return { w, h };

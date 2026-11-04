@@ -12,10 +12,18 @@ export function enemyRig(type, phase, moving) {
   const bob = -Math.abs(s);
   switch (type) {
     case 'gargoyle': {
-      const flap = 0.5 + 0.5 * Math.sin(phase * 1.6);
-      return { o: { dy: Math.sin(phase * 0.8) * 1.2 }, parts: [
-        { r: [0, 0, 1, 0.42], sy: 1 - flap * 0.5, pivot: 'bottom' }, // крылья
-        { r: [0, 0.4, 1, 1] },
+      // взмах: крылья от плеч уходят вниз и складываются, потом раскрываются вверх;
+      // каждые несколько взмахов — короткое планирование с раскрытыми крыльями
+      const glide = 0.35 + 0.65 * Math.min(1, Math.max(0, 0.5 + Math.sin(phase * 0.35) * 1.5));
+      const w = Math.sin(phase * 2.2) * glide;          // +1 — крылья вверху, −1 — внизу
+      const lag = Math.sin(phase * 2.2 - 1.2) * glide;   // тело и ноги отстают от крыльев
+      const wing = { sy: 1 + 0.18 * w - 0.38 * Math.max(0, -w), pivot: 'bottom', dy: -w * 0.8 };
+      const spread = 1 - 0.22 * Math.max(0, -w);
+      return { o: { dy: lag * 1.6 - 1, rot: 0.05 }, parts: [
+        { r: [0, 0.55, 1, 1], dx: -lag * 0.5 },                                 // ноги и хвост болтаются
+        { r: [0, 0, 0.42, 0.55], ...wing, sx: spread, pivotX: 'right' },       // заднее крыло
+        { r: [0.62, 0, 1, 0.55], ...wing, sx: spread, pivotX: 'left' },        // переднее крыло
+        { r: [0.42, 0, 0.62, 0.55] },                                           // голова и торс
       ] };
     }
     case 'wolf':
