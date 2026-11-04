@@ -30,7 +30,8 @@ export function initAudio() {
 
   sfxBus = ac.createGain(); sfxBus.gain.value = 0.6; sfxBus.connect(comp);
   const sfxSend = ac.createGain(); sfxSend.gain.value = 0.22; sfxBus.connect(sfxSend); sfxSend.connect(reverb);
-  musicBus = ac.createGain(); musicBus.gain.value = 0.17; musicBus.connect(comp);
+  musicBus = ac.createGain(); musicBus.connect(comp);
+  fadeInMusic();
   const musicSend = ac.createGain(); musicSend.gain.value = 0.55; musicBus.connect(musicSend); musicSend.connect(reverb);
 
   noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
@@ -389,7 +390,18 @@ export function sfx(name, arg) {
 // В бою добавляется лёгкий барабан с бубном, на боссе барабан плотнее.
 // mood: 'calm' | 'battle' | 'boss' | 'off'
 let mood = 'calm';
-export function setMusicMood(m) { mood = m; }
+const MUSIC_VOL = 0.17, MUSIC_FADE_IN = 5; // секунд на плавное вступление
+// музыка вступает с тишины и плавно набирает громкость — при первом включении звука и после экрана итогов
+function fadeInMusic() {
+  const t = ac.currentTime;
+  musicBus.gain.cancelScheduledValues(t);
+  musicBus.gain.setValueAtTime(0, t);
+  musicBus.gain.linearRampToValueAtTime(MUSIC_VOL, t + MUSIC_FADE_IN);
+}
+export function setMusicMood(m) {
+  if (ac && mood === 'off' && m !== 'off') fadeInMusic();
+  mood = m;
+}
 
 const BARS = [ // бас, аккорд
   [38, [62, 66, 69]], // D
