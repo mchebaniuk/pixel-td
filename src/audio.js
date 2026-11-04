@@ -266,21 +266,12 @@ const SFX = {
     noise(0.08, { freq: 2200, q: 1.5, vol: 0.16 });
     for (let i = 0; i < 7; i++) noise(0.03, { freq: rnd(900, 2800), q: 5, vol: rnd(0.06, 0.12), when: 0.04 + i * rnd(0.025, 0.05) });
   },
-  // луч жреца: плавное гудящее «вжуум» — мягкий аккорд через резонансный фильтр, который проходит вверх и оседает;
-  // без шипения и без пищащих нот
+  // луч жреца: мягкий поток воздуха без нот — полоса шума плавно проходит вверх и оседает («фьюуух»),
+  // без верхнего шипения и без пищащих генераторов
   zap() {
-    const t = at(0), dur = 0.5;
-    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 7;
-    f.frequency.setValueAtTime(350, t); f.frequency.exponentialRampToValueAtTime(1600, t + 0.14);
-    f.frequency.exponentialRampToValueAtTime(600, t + dur);
-    const g = ac.createGain(); env(g, t, 0.09, 0.06, dur, 0.25);
-    for (const [fr, det] of [[196, -6], [196, 6], [294, 0]]) {
-      const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fr; o.detune.value = det;
-      o.frequency.setValueAtTime(fr * 0.94, t); o.frequency.exponentialRampToValueAtTime(fr, t + 0.12);
-      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
-    }
-    f.connect(g); g.connect(sfxBus);
-    noise(0.4, { freq: 1200, to: 800, q: 1.2, vol: 0.025, attack: 0.08 }); // лёгкий воздух вокруг луча
+    noise(0.5, { freq: 900, to: 2000, q: 5, vol: 0.16, attack: 0.08 });     // основной «луч»: плавный проход вверх
+    noise(0.55, { freq: 1300, to: 900, q: 2.5, vol: 0.08, attack: 0.1 });   // мягкое тело потока
+    noise(0.45, { filter: 'lowpass', freq: 700, to: 400, vol: 0.06, attack: 0.1 }); // глухая основа
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — настоящие записанные голоса (скелет, гоблин, волк, гаргулья, орк, тролль)
