@@ -29,6 +29,7 @@ export function loadAssets() {
     i.onload = () => {
       dims[n] = { w: i.width / UNIT, h: i.height / UNIT };
       imgs[n] = RAW.includes(n) ? i : pixelate(i, Math.round(dims[n].w / PIX), Math.round(dims[n].h / PIX));
+      if (!RAW.includes(n) && n !== 'tower') nightGrade(imgs[n]);
       resolve();
     };
     i.onerror = () => reject(new Error(`Не загрузилась картинка assets/${file}`));
@@ -65,6 +66,21 @@ function pixelate(img, gw, gh) {
   }
   ox.putImageData(dst, 0, 0);
   return out;
+}
+
+// Ночная тонировка персонажей под освещение фона: слишком светлые (белый жрец) приглушаются сильнее,
+// всем добавляется лёгкий холодный оттенок ночи. Контраст внутри картинки сохраняется.
+const NIGHT_TARGET = 78;
+function nightGrade(c) {
+  const x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+  let sum = 0, n = 0;
+  for (let i = 0; i < p.length; i += 4) if (p[i + 3]) { sum += 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; n++; }
+  const k = Math.min(1, Math.max(0.62, Math.pow(NIGHT_TARGET / (sum / n), 0.6)));
+  for (let i = 0; i < p.length; i += 4) {
+    if (!p[i + 3]) continue;
+    p[i] = p[i] * k * 0.95; p[i + 1] = p[i + 1] * k * 0.97; p[i + 2] = Math.min(255, p[i + 2] * k * 1.04);
+  }
+  x.putImageData(d, 0, 0);
 }
 
 export function image(name) { return imgs[name]; }
@@ -155,22 +171,22 @@ const DIGITS = {
   '9': '111101111001111', '-': '000000111000000', '+': '000010111010000',
 };
 export function drawNumber(ctx, str, x, y, color) {
-  const s = String(str);
-  const totalW = s.length * 4 - 1;
-  let cx = Math.round(x - totalW / 2);
-  y = Math.round(y);
+  const s = String(str), P = PIX * 2; // пиксель шрифта — 2 клетки общей сетки
+  const totalW = (s.length * 4 - 1) * P;
+  let cx = Math.round((x - totalW / 2) / PIX) * PIX;
+  y = Math.round(y / PIX) * PIX;
   for (const ch of s) {
     const bits = DIGITS[ch];
     if (bits) {
       for (let i = 0; i < 15; i++) {
         if (bits[i] !== '1') continue;
-        const px = cx + (i % 3), py = y + Math.floor(i / 3);
+        const px = cx + (i % 3) * P, py = y + Math.floor(i / 3) * P;
         ctx.fillStyle = '#1a1420';
-        ctx.fillRect(px + 0.5, py + 0.5, 1, 1);
+        ctx.fillRect(px + PIX, py + PIX, P, P);
         ctx.fillStyle = color;
-        ctx.fillRect(px, py, 1, 1);
+        ctx.fillRect(px, py, P, P);
       }
     }
-    cx += 4;
+    cx += 4 * P;
   }
 }

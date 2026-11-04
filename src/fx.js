@@ -76,10 +76,10 @@ export class FX {
     for (const b of this.beams) {
       const a = b.life / 0.18;
       ctx.globalAlpha = a;
-      line(ctx, b.x1, b.y1, b.x2, b.y2, '#8a5a12', 3);
-      line(ctx, b.x1, b.y1, b.x2, b.y2, '#ffe08a', 1);
+      line(ctx, b.x1, b.y1, b.x2, b.y2, '#8a5a12', 4);
+      line(ctx, b.x1, b.y1, b.x2, b.y2, '#ffe08a', 2);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#fff6d0'; ctx.fillRect(Math.round(b.x2) - 1, Math.round(b.y2) - 1, 3, 3);
+      ctx.fillStyle = '#fff6d0'; cell(ctx, b.x2 - 1.5, b.y2 - 1.5, 3, 3);
     }
     for (const p of this.parts) {
       if (p.fire) continue;
@@ -98,16 +98,34 @@ export class FX {
   }
 }
 
-// пиксельная линия (Брезенхем), толщина t
+// ---------- рисование на общей пиксельной сетке (клетка = PIX) ----------
+export const snap = v => Math.round(v / PIX) * PIX;
+// прямоугольник, выровненный по сетке (размер не меньше одной клетки)
+export function cell(ctx, x, y, w = PIX, h = PIX) {
+  const x0 = snap(x), y0 = snap(y);
+  ctx.fillRect(x0, y0, Math.max(PIX, snap(x + w) - x0), Math.max(PIX, snap(y + h) - y0));
+}
+// пиксельный овал (тени, круг дальности, свечение)
+export function pxEllipse(ctx, cx, cy, rx, ry) {
+  const R = Math.ceil(ry / PIX), y0 = snap(cy);
+  for (let j = -R; j <= R; j++) {
+    const k = 1 - Math.pow((j * PIX) / ry, 2);
+    if (k <= 0) continue;
+    const hw = rx * Math.sqrt(k), x0 = snap(cx - hw), x1 = snap(cx + hw);
+    ctx.fillRect(x0, y0 + j * PIX, Math.max(PIX, x1 - x0), PIX);
+  }
+}
+
+// пиксельная линия (Брезенхем) на сетке PIX, толщина t клеток
 export function line(ctx, x1, y1, x2, y2, color, t = 1) {
-  x1 = Math.round(x1); y1 = Math.round(y1); x2 = Math.round(x2); y2 = Math.round(y2);
+  x1 = Math.round(x1 / PIX); y1 = Math.round(y1 / PIX); x2 = Math.round(x2 / PIX); y2 = Math.round(y2 / PIX);
   const dx = Math.abs(x2 - x1), dy = -Math.abs(y2 - y1);
   const sx = x1 < x2 ? 1 : -1, sy = y1 < y2 ? 1 : -1;
   let err = dx + dy;
   ctx.fillStyle = color;
   const o = Math.floor(t / 2);
   for (let guard = 0; guard < 1000; guard++) {
-    ctx.fillRect(x1 - o, y1 - o, t, t);
+    ctx.fillRect((x1 - o) * PIX, (y1 - o) * PIX, t * PIX, t * PIX);
     if (x1 === x2 && y1 === y2) break;
     const e2 = 2 * err;
     if (e2 >= dy) { err += dy; x1 += sx; }

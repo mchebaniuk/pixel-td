@@ -1,10 +1,10 @@
 import * as C from './config.js';
-import { drawAt, drawRig, size, SCALE } from './sprites.js';
+import { drawAt, drawRig, size, SCALE, PIX } from './sprites.js';
 import { unitRig, enemyRig } from './anim.js';
 import { PATH_LEN, posAt, SLOTS, renderBackground, drawTower, drawSlot, TOWER_TOP } from './map.js';
 
 const LIFT = 18; // высота полёта гаргулий
-import { FX, line, drawBoulder } from './fx.js';
+import { FX, line, drawBoulder, cell, pxEllipse } from './fx.js';
 
 export class Game {
   constructor(canvas, emit) {
@@ -390,12 +390,12 @@ export class Game {
   drawRange(x, y, r, color = '#fff3c0') {
     const ctx = this.ctx;
     ctx.fillStyle = 'rgba(255,240,180,0.07)';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    pxEllipse(ctx, x, y, r, r);
     ctx.fillStyle = color;
     const n = Math.floor(r * 0.9);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + this.time * 0.3;
-      ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 1, 1);
+      cell(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r);
     }
   }
 
@@ -419,13 +419,13 @@ export class Game {
       const glow = 0.35 + 0.25 * Math.sin(this.time * 4 + t.i) + atk * 0.6;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, glow);
       const gx = t.x + t.face * w * 0.375, gy = ry - h * 0.9;
-      const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, 3 + atk * 4);
-      g.addColorStop(0, 'rgba(255,246,208,1)'); g.addColorStop(1, 'rgba(255,190,60,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(gx, gy, 3 + atk * 4, 0, Math.PI * 2); ctx.fill();
+      const R = 2.4 + atk * 2.4; // пиксельное свечение: золотой ореол и небольшое светлое ядро
+      ctx.fillStyle = 'rgba(255,180,50,0.35)'; pxEllipse(ctx, gx, gy, R, R);
+      ctx.fillStyle = 'rgba(255,236,170,0.6)'; pxEllipse(ctx, gx, gy, R * 0.45, R * 0.45);
       ctx.restore();
     }
     if (this.hasteT > 0 && Math.floor(this.time * 8) % 2) {
-      ctx.fillStyle = '#7af4ff'; ctx.fillRect(t.x - 13, ry - h * 0.6, 1, 3); ctx.fillRect(t.x + 13, ry - h * 0.4, 1, 3);
+      ctx.fillStyle = '#7af4ff'; cell(ctx, t.x - 13, ry - h * 0.6, PIX, 3); cell(ctx, t.x + 13, ry - h * 0.4, PIX, 3);
     }
   }
 
@@ -439,17 +439,17 @@ export class Game {
     if (!moving) o.rot = 0.12;
     const sw = e.h * 0.55;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.beginPath(); ctx.ellipse(e.x, e.y + 1, sw / 2, 2, 0, 0, Math.PI * 2); ctx.fill();
+    pxEllipse(ctx, e.x, e.y + 1, sw / 2, 2);
     const { w, h } = drawRig(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts);
     const top = e.y + 2 - lift - h + (o.dy || 0);
-    if (e.slowT > 0 || this.slowT > 0) { ctx.fillStyle = 'rgba(127,214,255,0.9)'; ctx.fillRect(e.x - w / 2, e.y, w, 1); }
+    if (e.slowT > 0 || this.slowT > 0) { ctx.fillStyle = 'rgba(127,214,255,0.9)'; cell(ctx, e.x - w / 2, e.y, w, PIX); }
     if (e.dotT > 0 && Math.random() < 0.15) this.fx.parts.push({ x: e.x + Math.random() * 8 - 4, y: top + h * 0.3, vx: 0, vy: -12, life: 0.4, max: 0.4, c: '#ffd86a', g: 0, s: 1 });
-    if (e.stunT > 0) { const a = this.time * 8; ctx.fillStyle = '#f3c843'; ctx.fillRect(e.x + Math.cos(a) * 5, top - 2, 1.5, 1.5); ctx.fillRect(e.x - Math.cos(a) * 5, top - 2, 1.5, 1.5); }
+    if (e.stunT > 0) { const a = this.time * 8; ctx.fillStyle = '#f3c843'; cell(ctx, e.x + Math.cos(a) * 5, top - 2, 2 * PIX, 2 * PIX); cell(ctx, e.x - Math.cos(a) * 5, top - 2, 2 * PIX, 2 * PIX); }
     if (e.hp < e.max || e.def.boss) {
       const bw = e.def.boss ? 26 : 13, bx = Math.round(e.x - bw / 2), by = Math.round(top - 4);
-      ctx.fillStyle = '#1a1420'; ctx.fillRect(bx - 1, by - 1, bw + 2, 4);
-      ctx.fillStyle = '#5a1414'; ctx.fillRect(bx, by, bw, 2);
-      ctx.fillStyle = e.def.boss ? '#f08a2a' : '#5fd04a'; ctx.fillRect(bx, by, Math.max(0, bw * e.hp / e.max), 2);
+      ctx.fillStyle = '#1a1420'; cell(ctx, bx - PIX, by - PIX, bw + 2 * PIX, 5 * PIX);
+      ctx.fillStyle = '#5a1414'; cell(ctx, bx, by, bw, 3 * PIX);
+      ctx.fillStyle = e.def.boss ? '#f08a2a' : '#5fd04a'; if (e.hp > 0) cell(ctx, bx, by, bw * e.hp / e.max, 3 * PIX);
     }
   }
 
@@ -465,14 +465,14 @@ export class Game {
     if (p.kind === 'arrow') {
       const a = p.ang || 0, cx = Math.cos(a), cy = Math.sin(a);
       line(ctx, p.x - cx * 5, p.y - cy * 5, p.x, p.y, '#8a5630');
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
-      ctx.fillStyle = '#e05a4a'; ctx.fillRect(Math.round(p.x - cx * 5), Math.round(p.y - cy * 5), 1, 1);
+      ctx.fillStyle = '#ffffff'; cell(ctx, p.x, p.y);
+      ctx.fillStyle = '#e05a4a'; cell(ctx, p.x - cx * 5, p.y - cy * 5); cell(ctx, p.x - cx * 4.4, p.y - cy * 4.4);
     } else if (p.kind === 'rock') {
       const k = Math.min(1, p.t / p.dur);
       // тень на земле: растёт и темнеет по мере приближения валуна
       const gy = p.gy0 + (p.ty + 3 - p.gy0) * k;
       ctx.fillStyle = `rgba(0,0,0,${0.08 + 0.22 * k})`;
-      ctx.beginPath(); ctx.ellipse(p.x, gy, 2 + 2 * k, 1 + 0.8 * k, 0, 0, Math.PI * 2); ctx.fill();
+      pxEllipse(ctx, p.x, gy, 2 + 2 * k, 1 + 0.8 * k);
       drawBoulder(ctx, p.x, p.y, p.t * 20 * p.spin); // валун кувыркается в полёте
     }
   }
@@ -484,11 +484,11 @@ export class Game {
     const x = m.x - 60 * (1 - k), y = m.y - 140 * (1 - k);
     for (let i = 1; i < 6; i++) {
       ctx.fillStyle = ['#f3c843', '#f08a2a', '#d0402e', '#7a1f1a', '#3e3c40'][i - 1];
-      ctx.fillRect(Math.round(x - i * 3), Math.round(y - i * 7), 3, 3);
+      cell(ctx, x - i * 3, y - i * 7, 3, 3);
     }
-    ctx.fillStyle = '#7a1f1a'; ctx.fillRect(Math.round(x) - 3, Math.round(y) - 3, 7, 7);
-    ctx.fillStyle = '#f08a2a'; ctx.fillRect(Math.round(x) - 2, Math.round(y) - 2, 5, 5);
-    ctx.fillStyle = '#fff3a0'; ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2);
+    ctx.fillStyle = '#7a1f1a'; cell(ctx, x - 3.6, y - 3.6, 7.2, 7.2);
+    ctx.fillStyle = '#f08a2a'; cell(ctx, x - 2.4, y - 2.4, 4.8, 4.8);
+    ctx.fillStyle = '#fff3a0'; cell(ctx, x - 1.2, y - 1.2, 2.4, 2.4);
     this.drawRange(m.x, m.y, C.SPELLS.meteor.radius * k, '#f08a2a');
   }
 }

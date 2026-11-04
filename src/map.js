@@ -1,4 +1,5 @@
-import { image, drawAt } from './sprites.js';
+import { image, drawAt, PIX } from './sprites.js';
+import { cell } from './fx.js';
 
 
 // Координаты сняты с картинки фона (1774×887) и переведены в логические 480×240
@@ -67,10 +68,10 @@ export function drawTower(ctx, x, y, level, highlight) {
   // уровень — золотые щитки на кладке
   for (let l = 0; l < level - 1; l++) {
     const bx = x - 5 + l * 7, by = y - 20;
-    ctx.fillStyle = '#2a1a0a'; ctx.fillRect(bx - 0.5, by - 0.5, 5, 6);
-    ctx.fillStyle = '#f3c843'; ctx.fillRect(bx, by, 4, 4);
-    ctx.fillStyle = '#b8862a'; ctx.fillRect(bx, by + 4, 4, 1);
-    ctx.fillStyle = '#fff3a0'; ctx.fillRect(bx, by, 2, 1);
+    ctx.fillStyle = '#2a1a0a'; cell(ctx, bx - PIX, by - PIX, 4.8 + 2 * PIX, 6);
+    ctx.fillStyle = '#f3c843'; cell(ctx, bx, by, 4.8, 3.6);
+    ctx.fillStyle = '#b8862a'; cell(ctx, bx, by + 3.6, 4.8, 1.2);
+    ctx.fillStyle = '#fff3a0'; cell(ctx, bx, by, 2.4, PIX);
   }
 }
 
@@ -79,7 +80,7 @@ export function drawSlot(ctx, x, top, hover, t) {
   const a = hover ? 1 : 0.5 + 0.35 * Math.sin(t * 3);
   const y = top - 7 + Math.sin(t * 2.5) * 1.2;
   ctx.fillStyle = `rgba(40,24,6,${a})`;
-  ctx.fillRect(x - 4.5, y - 1.5, 9, 3); ctx.fillRect(x - 1.5, y - 4.5, 3, 9);
+  cell(ctx, x - 4.8, y - 1.8, 9.6, 3.6); cell(ctx, x - 1.8, y - 4.8, 3.6, 9.6);
   ctx.fillStyle = `rgba(255,214,90,${a})`;
-  ctx.fillRect(x - 3.5, y - 0.75, 7, 1.5); ctx.fillRect(x - 0.75, y - 3.5, 1.5, 7);
+  cell(ctx, x - 3.6, y - 0.6, 7.2, 1.2); cell(ctx, x - 0.6, y - 3.6, 1.2, 7.2);
 }
