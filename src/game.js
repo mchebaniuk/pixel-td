@@ -431,7 +431,7 @@ export class Game {
   drawEnemy(e) {
     const ctx = this.ctx;
     const moving = e.stunT <= 0;
-    const pace = { wolf: 13, troll: 6, gargoyle: 6, goblin: 11, orc: 8 }[e.type] || 9;
+    const pace = { wolf: 13, troll: 7.5, gargoyle: 6, goblin: 11, orc: 8 }[e.type] || 9;
     const rig = enemyRig(e.type, e.anim * pace, moving);
     const lift = e.def.flying ? LIFT : 0;
     const o = { ...rig.o, faceLeft: e.dir < 0, white: e.flash > 0 };

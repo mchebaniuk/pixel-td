@@ -63,7 +63,6 @@ export function renderBackground() {
 export const TOWER_TOP = 35;
 
 export function drawTower(ctx, x, y, level, highlight) {
-  if (highlight) ring(ctx, x, y, 'rgba(255,214,90,0.95)');
   drawAt(ctx, 'tower', x, y + 5);
   // уровень — золотые щитки на кладке
   for (let l = 0; l < level - 1; l++) {
@@ -83,9 +82,4 @@ export function drawSlot(ctx, x, top, hover, t) {
   ctx.fillRect(x - 4.5, y - 1.5, 9, 3); ctx.fillRect(x - 1.5, y - 4.5, 3, 9);
   ctx.fillStyle = `rgba(255,214,90,${a})`;
   ctx.fillRect(x - 3.5, y - 0.75, 7, 1.5); ctx.fillRect(x - 0.75, y - 3.5, 1.5, 7);
-}
-
-function ring(ctx, x, y, color) {
-  ctx.strokeStyle = color; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.ellipse(x, y, 16, 10.5, 0, 0, Math.PI * 2); ctx.stroke();
 }

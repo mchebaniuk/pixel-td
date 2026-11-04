@@ -81,7 +81,7 @@ function noise(dur, o = {}) {
   f.frequency.setValueAtTime(o.freq || 1000, t);
   if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t + dur);
   const g = ac.createGain();
-  env(g, t, o.vol ?? 0.2, o.attack ?? 0.005, dur);
+  env(g, t, o.vol ?? 0.2, o.attack ?? 0.005, dur, o.release || 0);
   src.connect(f); f.connect(g); g.connect(o.bus || sfxBus);
   src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
 }
@@ -208,7 +208,7 @@ function voice(f0, f1, dur, formants, vol, when) {
 
 // ---------- звуки игры ----------
 // минимальный интервал между повторами, чтобы толпа башен не сливалась в шум
-const GAP = { arrow: 0.07, hit: 0.05, zap: 0.12, fire: 0.6, death: 0.08, rock: 0.09, throw: 0.1, click: 0.04 };
+const GAP = { arrow: 0.07, hit: 0.05, zap: 0.12, fire: 0.8, death: 0.08, rock: 0.09, throw: 0.1, click: 0.04 };
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 const SFX = {
@@ -245,11 +245,12 @@ const SFX = {
     noise(0.42, { filter: 'highpass', freq: 5500, vol: 0.1, attack: 0.04 });
     noise(0.12, { filter: 'highpass', freq: 3500, vol: 0.07, when: 0.3 }); // пшш — ожог на цели
   },
-  // дракон выпускает струю пламени: мягкое ровное «фшшух», как из горелки — без треска и без рыка
+  // дракон выпускает струю пламени: мягкое ровное «фшшшш», как из горелки — без треска и без рыка.
+  // Звук длинный и повторяется внахлёст, поэтому, пока дракон дышит, пламя гудит непрерывно и плавно затихает.
   fire() {
-    noise(0.7, { filter: 'lowpass', freq: 2800, to: 1200, vol: 0.2, attack: 0.07 });
-    noise(0.65, { freq: 1100, to: 700, q: 0.6, vol: 0.12, attack: 0.08 });
-    noise(0.55, { filter: 'highpass', freq: 4500, vol: 0.035, attack: 0.1 });
+    noise(1.6, { filter: 'lowpass', freq: 2400, to: 1500, vol: 0.16, attack: 0.25, release: 0.9 });
+    noise(1.5, { freq: 1000, to: 800, q: 0.6, vol: 0.09, attack: 0.3, release: 0.9 });
+    noise(1.4, { filter: 'highpass', freq: 4500, vol: 0.025, attack: 0.3, release: 0.8 });
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — у каждого вида свой голос; тело падает с глухим ударом
