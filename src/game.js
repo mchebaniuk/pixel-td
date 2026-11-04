@@ -191,7 +191,7 @@ export class Game {
     } else if (this.phase === 'break') {
       // отсчёт паузы идёт только когда поле очищено: волны не наезжают друг на друга
       if (this.enemies.length === 0) {
-        if (!this.waveCleared) { // волна отбита — один раз сообщаем интерфейсу
+        if (!this.waveCleared && this.waveIdx >= 0) { // волна отбита — один раз сообщаем интерфейсу (до первой волны — нечего отбивать)
           this.waveCleared = true;
           this.sfx('cleared');
           this.emit('cleared', { idx: this.waveIdx, next: C.ENEMIES[C.WAVES[this.waveIdx + 1].type].name, wait: C.WAVE_BREAK });
