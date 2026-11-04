@@ -46,7 +46,71 @@ export function posAt(d) {
 }
 
 // ---------- фон ----------
+// Фон ужимается до той же пиксельной сетки PIX, что персонажи и башни (800×400 клеток),
+// чтобы зерно у всего на экране было одинаковым. Сами персонажи и башни не меняются.
 export function renderBackground() {
+  const full = renderBackgroundFull();
+  const c = document.createElement('canvas');
+  c.width = Math.round(480 / PIX); c.height = Math.round(full.height / full.width * 480 / PIX);
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(full, 0, 0, c.width, c.height);
+  paintOpenGate(ctx);
+  return c;
+}
+
+// Открытые ворота замка, нарисованные по клеткам сетки прямо на фоне (1 пиксель = 1 клетка PIX).
+// Форма проёма снята с арки на фоне: полукруглый свод, низ скошен по перспективе стены.
+// Внутри: проход вглубь, освещённый откос слева, распахнутая створка справа, поднятая решётка под сводом.
+function paintOpenGate(ctx) {
+  const U = 1 / PIX; // клеток на логическую единицу
+  const cx = 435.8 * U, top = 95 * U, r = 10.6 * U, x0 = cx - r, x1 = cx + r;
+  const floorY = x => (124 + (x * PIX - (435.8 - 10.6)) * 0.33) * U;
+  const hash = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
+  const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+  const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+  const inside = (x, y) => {
+    if (x < x0 + 1 || x > x1 - 1 || y > floorY(x)) return false;
+    if (y < top + r) return Math.hypot(x - cx, y - (top + r)) < r - 0.6;
+    return y >= top;
+  };
+  const DARK = [9, 8, 13], LIT = [46, 36, 30];
+  for (let y = Math.floor(top); y <= Math.ceil(floorY(x1)); y++) {
+    for (let x = Math.floor(x0); x <= Math.ceil(x1); x++) {
+      if (!inside(x + 0.5, y + 0.5)) continue;
+      const fy = floorY(x + 0.5), depth = Math.min(1, Math.max(0, (y - top) / (fy - top)));
+      let col = mix(DARK, LIT, Math.pow(depth, 2.2) * 0.8);          // в глубине темно, у порога отсвет факелов
+      const lx = x - x0, rx = x1 - x;
+      if (fy - y < 7) {                                               // брусчатка уходит внутрь и темнеет
+        const k = 1 - (fy - y) / 7, st = hash(Math.floor(x / 3), Math.floor((y + (Math.floor(x / 3) % 2)) / 2));
+        col = (y % 2 === 0 && hash(x, y) > 0.55) ? mix(DARK, [40, 40, 48], k) : mix(DARK, st > 0.5 ? [70, 70, 80] : [58, 58, 68], k * 0.85);
+      } else if (lx < 4) {                                            // каменный откос слева, освещён снаружи
+        const mortar = (y % 5 === 0) || (lx === 3);
+        col = mortar ? [34, 33, 40] : mix([58, 58, 68], [92, 92, 104], depth * 0.8 + (lx === 0 ? 0.15 : 0));
+      } else if (rx < 6) {                                            // распахнутая внутрь створка
+        const plank = rx % 2 === 0, band = Math.abs(y - (top + (fy - top) * 0.3)) < 1 || Math.abs(y - (top + (fy - top) * 0.72)) < 1;
+        col = band ? [38, 38, 44] : mix(plank ? [62, 40, 24] : [78, 52, 30], [22, 15, 10], (1 - depth) * 0.55);
+        if (rx === 5) col = [20, 13, 9];                              // тень от кромки створки
+        if (band && rx === 1) col = [110, 110, 120];                  // заклёпка
+      }
+      ctx.fillStyle = rgb(col); ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  // поднятая решётка: железная перекладина под сводом и зубья вниз
+  const barY = Math.round(top + 3);
+  for (let x = Math.floor(x0); x <= Math.ceil(x1); x++) {
+    if (!inside(x + 0.5, barY + 0.5)) continue;
+    ctx.fillStyle = 'rgb(28,29,34)'; ctx.fillRect(x, barY, 1, 2);
+    ctx.fillStyle = 'rgb(96,98,110)'; ctx.fillRect(x, barY, 1, 1);
+  }
+  for (let x = Math.round(x0) + 3; x < x1 - 2; x += 4) {
+    if (!inside(x + 0.5, barY + 4)) continue;
+    ctx.fillStyle = 'rgb(28,29,34)'; ctx.fillRect(x, barY + 2, 1, 4);
+    ctx.fillStyle = 'rgb(120,122,134)'; ctx.fillRect(x, barY + 5, 1, 1);  // острый кончик
+  }
+}
+
+function renderBackgroundFull() {
   const bg = image('bg_hd'), f = image('foundation_hd');
   const c = document.createElement('canvas');
   c.width = bg.width; c.height = bg.height;

@@ -30,9 +30,12 @@ export function initAudio() {
 
   sfxBus = ac.createGain(); sfxBus.gain.value = 0.6; sfxBus.connect(comp);
   const sfxSend = ac.createGain(); sfxSend.gain.value = 0.22; sfxBus.connect(sfxSend); sfxSend.connect(reverb);
-  musicBus = ac.createGain(); musicBus.connect(comp);
+  musicBus = ac.createGain();
+  // общий мягкий фильтр на всю музыку: срезает резкие верхи, чтобы она не резала слух
+  const musicSoft = ac.createBiquadFilter(); musicSoft.type = 'lowpass'; musicSoft.frequency.value = 2200; musicSoft.Q.value = 0.5;
+  musicBus.connect(musicSoft); musicSoft.connect(comp);
   fadeInMusic();
-  const musicSend = ac.createGain(); musicSend.gain.value = 0.55; musicBus.connect(musicSend); musicSend.connect(reverb);
+  const musicSend = ac.createGain(); musicSend.gain.value = 0.55; musicSoft.connect(musicSend); musicSend.connect(reverb);
 
   noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
   const d = noiseBuf.getChannelData(0);
@@ -266,12 +269,11 @@ const SFX = {
     noise(0.08, { freq: 2200, q: 1.5, vol: 0.16 });
     for (let i = 0; i < 7; i++) noise(0.03, { freq: rnd(900, 2800), q: 5, vol: rnd(0.06, 0.12), when: 0.04 + i * rnd(0.025, 0.05) });
   },
-  // луч жреца: мягкий поток воздуха без нот — полоса шума плавно проходит вверх и оседает («фьюуух»),
-  // без верхнего шипения и без пищащих генераторов
+  // луч жреца: тихое мягкое «фуух» — широкая низкая полоса шума плавно приподнимается и оседает;
+  // ни нот, ни свиста, ни верхнего шипения
   zap() {
-    noise(0.5, { freq: 900, to: 2000, q: 5, vol: 0.16, attack: 0.08 });     // основной «луч»: плавный проход вверх
-    noise(0.55, { freq: 1300, to: 900, q: 2.5, vol: 0.08, attack: 0.1 });   // мягкое тело потока
-    noise(0.45, { filter: 'lowpass', freq: 700, to: 400, vol: 0.06, attack: 0.1 }); // глухая основа
+    noise(0.65, { freq: 550, to: 1050, q: 2.2, vol: 0.09, attack: 0.18 });
+    noise(0.7, { filter: 'lowpass', freq: 600, to: 350, vol: 0.06, attack: 0.2 });
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — настоящие записанные голоса (скелет, гоблин, волк, гаргулья, орк, тролль)
@@ -433,7 +435,7 @@ const MELODY = [
   [[0, 76, 4], [4, 73, 2]],
 ];
 const ARP = [0, 1, 2, 3, 2, 1];
-const STEP = 60 / 104 / 2; // восьмые при 104 ударах в минуту
+const STEP = 60 / 84 / 2; // восьмые при 84 ударах в минуту — неторопливо
 let nextTime = 0, step = 0;
 
 function startMusic() {
@@ -454,25 +456,24 @@ function scheduleStep(n, t) {
   const barLen = STEP * 6;
 
   if (s === 0) {
-    strings(chord.map(midi), barLen + 0.4, { vol: 0.045, attack: 0.45, release: 0.5, when, bus, lp: 1500 });
-    pluck(midi(bass), { dur: 1.6, vol: 0.34, soft: 0.55, lp: 1000, when, bus });
+    strings(chord.map(midi), barLen + 0.8, { vol: 0.04, attack: 0.9, release: 0.9, when, bus, lp: 900 });
+    pluck(midi(bass), { dur: 2.2, vol: 0.28, soft: 0.75, lp: 700, when, bus });
   }
-  if (s === 4) pluck(midi(bass + 7), { dur: 1, vol: 0.2, soft: 0.55, lp: 1000, when, bus });
+  if (s === 4) pluck(midi(bass + 7), { dur: 1.4, vol: 0.14, soft: 0.75, lp: 700, when, bus });
   // арфа
   const tones = [chord[0] - 12, chord[1] - 12, chord[2] - 12, chord[0]];
-  pluck(midi(tones[ARP[s]]), { dur: 1.6, vol: s === 0 ? 0.13 : 0.09, soft: 0.45, lp: 2600, when, bus });
+  if (s % 2 === 0) pluck(midi(tones[ARP[s]]), { dur: 2.2, vol: s === 0 ? 0.1 : 0.07, soft: 0.75, lp: 1500, when, bus }); // арфа — только на доли, мягко
 
   // мелодия: флейта, а через круг — арфа октавой ниже
   for (const [st, m, len] of MELODY[bar]) {
     if (st !== s) continue;
-    if (loop % 2 === 0) flute(midi(m), len * STEP * 0.95, { vol: 0.08, when, bus });
-    else pluck(midi(m - 12), { dur: 2, vol: 0.2, soft: 0.35, lp: 3000, when, bus });
+    if (loop % 2 === 0) flute(midi(m - 12), len * STEP * 0.95, { vol: 0.06, when, bus }); // флейта на октаву ниже
+    else pluck(midi(m - 12), { dur: 2.4, vol: 0.13, soft: 0.7, lp: 1500, when, bus });
   }
 
   // лёгкий барабан и бубен в бою
   if (fight) {
     if (s === 0) drum(boss ? 0.3 : 0.2, { when, bus, pitch: boss ? 0.9 : 1.2 });
     if (boss && s === 3) drum(0.18, { when, bus, pitch: 1 });
-    if (s === 2 || s === 4) noise(0.06, { filter: 'highpass', freq: 7000, vol: 0.05, when, bus });
   }
 }

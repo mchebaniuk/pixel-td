@@ -162,6 +162,7 @@ export function drawRig(ctx, name, x, y, o, parts) {
   ctx.save();
   ctx.translate(x + (o.dx || 0) * (o.faceLeft ? -1 : 1), y + (o.dy || 0));
   if (o.rot) ctx.rotate(o.faceLeft ? -o.rot : o.rot);
+  if (o.sx !== undefined && o.sx !== 1) ctx.scale(o.sx, 1); // сжатие по ширине — плавный разворот
   if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   for (const p of parts) {

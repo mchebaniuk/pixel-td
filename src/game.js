@@ -7,6 +7,16 @@ const LIFT = 18; // высота полёта гаргулий
 // места на фоне (логические координаты): пламя факелов и ворота замка
 const TORCHES = [[20, 86], [390, 109], [438, 140]];
 const GATE = { x: 424, y: 97, w: 20, h: 20 };
+const TURN_TIME = 0.2; // плавный разворот: фигура сжимается по ширине и раскрывается уже в другую сторону
+// обновляет показанную сторону o.shown и таймер разворота o.turnT по желаемой стороне want
+function turnTowards(o, want, dt) {
+  if (o.shown === undefined) o.shown = want;
+  if (o.turnT > 0) {
+    o.turnT -= dt;
+    if (o.turnT <= TURN_TIME / 2) o.shown = o.turnTo;
+  } else if (want !== o.shown) { o.turnT = TURN_TIME; o.turnTo = want; }
+}
+const turnScale = o => (o.turnT > 0 ? Math.max(0.12, Math.abs(Math.cos(Math.PI * (1 - o.turnT / TURN_TIME)))) : 1);
 const GATE_FADE = 16; // за сколько единиц пути до конца враг начинает растворяться в проходе ворот
 // обводка улучшенных защитников: 2 уровень — серебро, 3 — золото
 const LEVEL_GLOW = { 2: ['#a8d4ff', 0.45], 3: ['#ffd34a', 0.75] };
@@ -19,7 +29,8 @@ export class Game {
     this.emit = emit || (() => {});
     this.sfx = () => {}; // звуки подключает интерфейс
     this.flame = () => {}; // непрерывный звук пламени дракона
-    this.bg = renderBackground();
+    this.bg = renderBackground(); // фон в клетках сетки PIX
+    this.bgScaled = null;
     this.pxScale = SCALE; // экранных пикселей на логическую единицу, задаёт интерфейс
     this.reset();
   }
@@ -207,6 +218,7 @@ export class Game {
     e.anim += dt * k;
     const p = posAt(e.d);
     if (p.dx) e.dir = p.dx;
+    turnTowards(e, e.dir, dt);
     e.x = p.x; e.y = p.y;
     if (e.d >= PATH_LEN) {
       e.alive = false;
@@ -320,6 +332,7 @@ export class Game {
     const s = this.stats(t);
     t.anim = Math.max(0, t.anim - dt);
     t.breath = Math.max(0, (t.breath || 0) - dt);
+    turnTowards(t, t.face, dt);
     this.flame(t.i, t.unit === 'dragon' && t.breath > 0); // звук огня ровно столько, сколько видна струя
     if (t.unit === 'dragon' && t.breath > 0) { // огонь льётся непрерывно, пока дракон дышит
       t.fireAcc = (t.fireAcc || 0) + dt * 150; // много коротких языков сливаются в сплошную струю
@@ -467,7 +480,14 @@ export class Game {
     ctx.setTransform(this.pxScale, 0, 0, this.pxScale, 0, 0);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     if (this.fx.shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * this.fx.shake * 2), Math.round((Math.random() - 0.5) * this.fx.shake * 2));
-    ctx.drawImage(this.bg, 0, 0, C.W, C.H);
+    // фон заранее увеличен «квадратиками» под плотность экрана, как спрайты, поэтому клетки чёткие
+    const k = Math.max(1, Math.ceil(this.pxScale * PIX));
+    if (!this.bgScaled || this.bgScaled.k !== k) {
+      const c = document.createElement('canvas'); c.width = this.bg.width * k; c.height = this.bg.height * k;
+      const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(this.bg, 0, 0, c.width, c.height);
+      this.bgScaled = { c, k };
+    }
+    ctx.drawImage(this.bgScaled.c, 0, 0, C.W, this.bg.height * PIX);
     this.drawAmbientBack();
 
     // зона действия выбранной башни / предпросмотр
@@ -493,34 +513,13 @@ export class Game {
     ctx.restore();
   }
 
-  // ворота замка открыты: в арке тёмный проход вглубь, решётка поднята наверх.
-  // Нарисованные на фоне створки закрываются темнотой построчно по форме арки
-  drawOpenGate() {
-    // форма проёма снята с фона: полукруглый верх, низ скошен по перспективе стены
-    const ctx = this.ctx, cx = 435.8, top = 95, r = 10.6, x0 = cx - r, x1 = cx + r;
-    const floorY = x => 124 + (x - x0) * 0.33;
-    for (let y = top; y < floorY(x1); y += PIX) {
-      let a = x0, b = x1;
-      if (y < top + r) { const half = Math.sqrt(Math.max(0, r * r - Math.pow(top + r - y, 2))); a = cx - half; b = cx + half; }
-      a = Math.max(a, x0 + 0.6); b = Math.min(b, x1 - 0.6);
-      const cut = x0 + (y - 124) / 0.33; // ниже порога слева — уже мостовая
-      if (y > 124) a = Math.max(a, cut);
-      if (b - a < PIX) continue;
-      const k = (y - top) / (floorY(x1) - top);
-      ctx.fillStyle = `rgb(${Math.round(12 + 26 * k)},${Math.round(10 + 15 * k)},${Math.round(14 + 8 * k)})`;
-      cell(ctx, a, y, b - a, PIX);
-    }
-    // поднятая решётка: из-под свода торчат нижние зубья
-    for (let i = -3; i <= 3; i++) {
-      const bx = cx + i * 2.6 - 0.6, len = 4.2 - Math.abs(i) * 0.6;
-      ctx.fillStyle = '#3d3f48'; cell(ctx, bx, top + 1.2 + Math.abs(i) * 0.4, 1.2, len);
-      ctx.fillStyle = '#6a6c76'; cell(ctx, bx, top + 1.2 + Math.abs(i) * 0.4, 0.6, len * 0.6);
-    }
-    // прорыв врага: в глубине прохода на миг тревожно вспыхивает отсвет
-    if (this.gateHit > 0) {
-      ctx.fillStyle = `rgba(255,110,50,${this.gateHit * 0.35})`;
-      for (let y = 112; y < 126; y += PIX) cell(ctx, x0 + 3, y, r * 2 - 6, PIX);
-    }
+  // ворота замка открыты: проход нарисован прямо на фоне (paintOpenGate в map.js).
+  // При прорыве врага в глубине прохода на миг вспыхивает тревожный отсвет
+  drawGateAlarm() {
+    if (this.gateHit <= 0) return;
+    const ctx = this.ctx;
+    ctx.fillStyle = `rgba(255,110,50,${this.gateHit * 0.3})`;
+    pxEllipse(ctx, 436, 118, 6, 3.6);
   }
 
   // окружение позади объектов: свет факелов, туман, выжженная земля, ворота, ударные волны
@@ -546,7 +545,7 @@ export class Game {
     for (const b of this.burns) {
       ctx.fillStyle = `rgba(40,18,8,${0.35 * Math.min(1, b.t)})`; pxEllipse(ctx, b.x, b.y, b.r, b.r * 0.5);
     }
-    this.drawOpenGate();
+    this.drawGateAlarm();
     // ударная волна от кулаков тролля: расходящееся пиксельное кольцо
     for (const s of this.shocks) {
       const k = s.t / 0.5, r = s.r * (0.2 + 0.8 * k), n = Math.floor(r * 1.6);
@@ -575,7 +574,7 @@ export class Game {
   // тетива лучника рисуется отдельно: натягивается к лицу перед выстрелом, после выстрела распрямляется и дрожит.
   // Концы лука и точка натяжения — в долях картинки (персонаж смотрит вправо)
   drawBowstring(t, top, o, partDy, windup, atk) {
-    const ctx = this.ctx, { w, h } = size('archer'), f = t.face;
+    const ctx = this.ctx, { w, h } = size('archer'), f = t.shown ?? t.face;
     const pull = windup * windup * (3 - 2 * windup);
     const P = (fx, fy) => [-w / 2 + fx * w, -h + fy * h + partDy];
     const tipT = P(0.667, 0.03), tipB = P(0.66, 0.72);
@@ -585,7 +584,7 @@ export class Game {
     ctx.save();
     ctx.translate(t.x + (o.dx || 0) * f, top + (o.dy || 0));
     if (o.rot) ctx.rotate(f < 0 ? -o.rot : o.rot);
-    if (f < 0) ctx.scale(-1, 1);
+    ctx.scale((f < 0 ? -1 : 1) * (o.sx ?? 1), 1);
     line(ctx, tipT[0], tipT[1], nx, ny, '#d8d0bc', 1);
     line(ctx, nx, ny, tipB[0], tipB[1], '#d8d0bc', 1);
     ctx.restore();
@@ -612,7 +611,7 @@ export class Game {
     const atk = t.anim / 0.3;
     const windup = t.hasTarget ? Math.min(1, Math.max(0, 1 - t.cd / 0.5)) : 0;
     const rig = unitRig(t.unit, this.time, atk, windup, t.i * 1.7);
-    const o = { ...rig.o, faceLeft: t.face < 0 };
+    const o = { ...rig.o, faceLeft: (t.shown ?? t.face) < 0, sx: turnScale(t) };
     if (t.unit === 'archer') this.drawBowstring(t, top, o, rig.parts[1].dy || 0, windup, atk);
     const glow = LEVEL_GLOW[t.level];
     if (glow) drawRigOutline(ctx, t.unit, t.x, top, o, rig.parts, glow[0], glow[1] * (0.75 + 0.25 * Math.sin(this.time * 3 + t.i)));
@@ -649,7 +648,8 @@ export class Game {
     const rig = enemyRig(e.type, e.anim * pace, moving);
     const lift = e.def.flying ? LIFT : 0;
     const fade = Math.min(1, Math.max(0, (PATH_LEN - e.d) / GATE_FADE)); // уходит в темноту ворот
-    const o = { ...rig.o, faceLeft: e.dir < 0, white: e.flash > 0, alpha: fade };
+    const o = { ...rig.o, faceLeft: (e.shown ?? e.dir) < 0, white: e.flash > 0, alpha: fade, sx: turnScale(e) };
+    if (e.flash > 0) { o.dx = (o.dx || 0) - 0.8; o.rot = (o.rot || 0) - 0.07; } // вздрагивает от попадания
     if (fade < 1) ctx.globalAlpha = fade;
     if (!moving) o.rot = 0.12;
     if (e.slamAnim > 0) o.dy = (o.dy || 0) - Math.sin((1 - e.slamAnim / 0.45) * Math.PI) * 4; // подпрыгивает перед ударом
