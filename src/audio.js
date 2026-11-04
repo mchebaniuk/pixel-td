@@ -214,8 +214,12 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const SFX = {
   // тетива и свист стрелы
   arrow() {
-    pluck(rnd(92, 104), { dur: 0.32, soft: 0.2, vol: 0.5, lp: 1800 });
-    noise(0.16, { freq: 2400, to: 700, q: 1.6, vol: 0.09, attack: 0.02, when: 0.02 });
+    // хлопок плеч лука и шлепок тетивы — глухо и коротко, без звенящей ноты
+    thump(rnd(150, 175), 60, 0.07, 0.32);
+    noise(0.035, { freq: 900, q: 1.8, vol: 0.24 });
+    noise(0.07, { filter: 'lowpass', freq: 450, vol: 0.16 });
+    // свист улетающей стрелы
+    noise(0.22, { freq: rnd(3200, 3800), to: 850, q: 1.3, vol: 0.11, attack: 0.03, when: 0.02 });
   },
   // взмах тяжёлого валуна
   throw() { noise(0.32, { freq: 280, to: 820, q: 1.4, vol: 0.16, attack: 0.08 }); },
