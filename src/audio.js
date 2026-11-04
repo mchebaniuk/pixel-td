@@ -60,11 +60,11 @@ function loadSamples() {
   }
 }
 // случайный вариант записи, с чуть разной высотой, чтобы толпа не звучала одинаково
-function sample(name, vol = 0.8, when = 0) {
+function sample(name, vol = 0.8, when = 0, pitch = 1) {
   const set = samples[name];
   if (!set || !set.length) return false;
   const src = ac.createBufferSource(); src.buffer = set[Math.floor(Math.random() * set.length)];
-  src.playbackRate.value = rnd(0.92, 1.08);
+  src.playbackRate.value = rnd(0.92, 1.08) * pitch; // pitch > 1 — выше тоном
   // упрощаем запись под стиль остальных звуков: без верхней детализации и низкого гула,
   // только короткое начало крика с быстрым затуханием
   const t = at(when), len = 0.55;
@@ -283,7 +283,8 @@ const SFX = {
   // гибель врага — настоящие записанные голоса (скелет, гоблин, волк, гаргулья, орк, тролль)
   death(type) {
     const vol = { skeleton: 0.7, goblin: 0.8, wolf: 0.65, gargoyle: 0.55, orc: 0.8, troll: 1 }[type] ?? 0.7;
-    if (!sample(type, vol)) noise(0.14, { filter: 'lowpass', freq: 320, vol: 0.22 }); // запись ещё не загрузилась — глухой удар
+    const pitch = type === 'skeleton' ? 1.15 : 1; // кости скелета звучат на 15% выше
+    if (!sample(type, vol, 0, pitch)) noise(0.14, { filter: 'lowpass', freq: 320, vol: 0.22 }); // запись ещё не загрузилась — глухой удар
   },
   // плотник: два удара молотом и аккорд арфы
   build() {
