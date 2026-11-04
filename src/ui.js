@@ -1,9 +1,9 @@
 import * as C from './config.js';
 import { Game } from './game.js';
-import { sprite } from './sprites.js';
+import { loadAssets } from './sprites.js';
 
 const $ = id => document.getElementById(id);
-const cv = $('cv'), stage = $('stage'), popup = $('popup'), overlay = $('overlay');
+const cv = $('cv'), stage = $('stage'), overlay = $('overlay');
 const params = new URLSearchParams(location.search);
 
 // ---------- мелкие пиксельные иконки интерфейса ----------
@@ -19,44 +19,48 @@ document.querySelectorAll('canvas[data-icon]').forEach(c => {
   const x = c.getContext('2d');
   ICONS[c.dataset.icon].forEach((row, j) => [...row].forEach((ch, i) => { if (ICOL[ch]) { x.fillStyle = ICOL[ch]; x.fillRect(i, j, 1, 1); } }));
 });
-function unitIcon(key, size = 20) {
-  const c = document.createElement('canvas'); c.width = size; c.height = size;
-  const s = sprite(key), x = c.getContext('2d');
-  x.drawImage(s, Math.floor((size - s.width) / 2), Math.floor((size - s.height) / 2));
-  return c;
-}
+const portrait = k => `<img src="assets/${k}.png" alt="">`;
 
-// ---------- игра ----------
-let dirty = true;
-const game = new Game(cv, (ev, data) => {
-  if (ev === 'change') dirty = true;
-  if (ev === 'wave') showBanner(data);
-  if (ev === 'end') showEnd(data);
-});
-window.__game = game;
+// ---------- состояние интерфейса ----------
+let game, dirty = true, pick = null;
 
 // ---------- размер ----------
 function fit() {
   const top = $('top').offsetHeight, bottom = $('bottom').offsetHeight;
-  const availW = $('app').clientWidth - 4;
-  const availH = window.innerHeight - top - bottom - 30;
-  let s = Math.min(availW / C.W, availH / C.H);
-  if (s >= 2) s = Math.floor(s * 2) / 2;
-  s = Math.max(0.6, s);
-  cv.style.width = Math.floor(C.W * s) + 'px';
-  cv.style.height = Math.floor(C.H * s) + 'px';
-  $('app').style.maxWidth = Math.floor(C.W * s) + 4 + 'px';
+  const availW = document.body.clientWidth - 32;
+  const availH = window.innerHeight - top - bottom - 34;
+  const s = Math.max(0.3, Math.min(availW / cv.width, availH / cv.height));
+  cv.style.width = Math.floor(cv.width * s) + 'px';
+  cv.style.height = Math.floor(cv.height * s) + 'px';
+  $('app').style.maxWidth = Math.max(Math.floor(cv.width * s), 680) + 'px';
 }
 window.addEventListener('resize', fit);
+
+// ---------- панель постройки ----------
+function buildUnitButtons() {
+  const box = $('units');
+  for (const k of C.UNIT_ORDER) {
+    const u = C.UNITS[k];
+    const b = document.createElement('button');
+    b.className = 'unit'; b.id = 'u-' + k; b.title = u.desc;
+    b.innerHTML = `<div class="pic">${portrait(k)}</div><span>${u.name}</span><span class="cost">${u.cost}</span>`;
+    b.onclick = () => {
+      const t = game.towers[game.selected];
+      if (t && !t.unit) { game.build(t.i, k); pick = null; }
+      else pick = pick === k ? null : k;
+      dirty = true;
+    };
+    box.append(b);
+  }
+}
 
 // ---------- HUD ----------
 function refreshHud() {
   $('gold').textContent = Math.floor(game.gold);
-  $('lives').textContent = Math.max(0, game.lives);
+  $('lives').textContent = `${Math.max(0, game.lives)}/${C.START_LIVES}`;
   const wi = game.waveIdx;
-  const w = C.WAVES[Math.max(0, wi)];
-  if (wi < 0) $('wave').innerHTML = `Подготовка · первая волна: <b>${C.ENEMIES[C.WAVES[0].type].name}</b>`;
-  else $('wave').innerHTML = `Волна <b>${wi + 1}/${C.WAVES.length}</b> · ${C.ENEMIES[w.type].name}`;
+  if (wi < 0) $('wave').innerHTML = `Волна <b>0/${C.WAVES.length}</b>`;
+  else $('wave').innerHTML = `Волна <b>${wi + 1}/${C.WAVES.length}</b> · ${C.ENEMIES[C.WAVES[wi].type].name}`;
   const next = $('next');
   next.disabled = !game.canCallWave() || game.phase === 'prep';
   if (game.phase === 'break') {
@@ -75,69 +79,35 @@ function refreshHud() {
     b.disabled = game.mana < C.SPELLS[k].mana || game.phase === 'over' || game.phase === 'prep';
     b.classList.toggle('on', game.targeting === k || (k === 'slow' && game.slowT > 0) || (k === 'haste' && game.hasteT > 0));
   }
-  if (game.targeting === 'meteor') $('hint').textContent = 'Выбери место удара метеора. Esc — отмена';
-  else $('hint').textContent = 'Нажми на каменную площадку, чтобы поставить башню · 1 2 3 — заклинания';
-  if (!popup.hidden) renderPopup(true);
+  for (const k of C.UNIT_ORDER) {
+    const b = $('u-' + k);
+    b.disabled = game.gold < C.UNITS[k].cost || game.phase === 'over';
+    b.classList.toggle('on', pick === k);
+  }
+  refreshTowerPanel();
 }
 
-// ---------- меню башни ----------
-function openPopup(i) {
-  game.selected = i;
-  popup.hidden = false;
-  renderPopup();
-}
-function closePopup() { game.selected = -1; popup.hidden = true; }
-
-function renderPopup(soft) {
+function refreshTowerPanel() {
   const t = game.towers[game.selected];
-  if (!t) return closePopup();
-  if (soft) { // обновить только доступность кнопок
-    popup.querySelectorAll('[data-cost]').forEach(b => { b.disabled = game.gold < +b.dataset.cost; });
+  const up = $('upgrade'), sell = $('sell'), info = $('info');
+  if (game.targeting === 'meteor') { info.innerHTML = 'Нажми на карту, куда упадёт <b>метеор</b>. Esc — отмена'; }
+  if (!t || !t.unit) {
+    up.disabled = sell.disabled = true; up.textContent = 'Улучшить'; sell.textContent = 'Продать';
+    if (game.targeting !== 'meteor') {
+      info.innerHTML = t ? 'Пустой фундамент. Выбери защитника в панели <b>Постройка</b>'
+        : pick ? `Нажми на свободный фундамент, чтобы поставить: <b>${C.UNITS[pick].name}</b>`
+        : 'Нажми на фундамент у дороги или на готовую башню';
+    }
     return;
   }
-  popup.innerHTML = '';
-  if (!t.unit) {
-    popup.insertAdjacentHTML('beforeend', '<h3>Построить башню</h3><p>Выбери защитника на вершину</p><div class="units"></div>');
-    const grid = popup.querySelector('.units');
-    for (const k of C.UNIT_ORDER) {
-      const u = C.UNITS[k];
-      const b = document.createElement('button');
-      b.className = 'unit'; b.dataset.cost = u.cost; b.title = u.desc;
-      b.append(unitIcon(k));
-      b.insertAdjacentHTML('beforeend', `<span>${u.name}</span><span class="cost">${u.cost} з.</span>`);
-      b.disabled = game.gold < u.cost;
-      b.onclick = () => { if (game.build(t.i, k)) closePopup(); };
-      grid.append(b);
-    }
-  } else {
-    const u = C.UNITS[t.unit], s = game.stats(t);
-    const nl = u.levels[t.level];
-    const diff = (a, b) => (b !== undefined && b !== a) ? ` <i>→ ${b}</i>` : '';
-    const rateTxt = r => (1 / r).toFixed(1);
-    popup.insertAdjacentHTML('beforeend', `<h3>${u.name} · ур. ${t.level}</h3><p>${u.desc}</p>
-      <dl class="stats">
-        <dt>Урон</dt><dd>${s.dmg}${s.dps ? ' + ' + s.dps + '/с' : ''}${nl ? diff(s.dmg, nl.dmg) : ''}</dd>
-        <dt>Дальность</dt><dd>${s.range}${nl ? diff(s.range, nl.range) : ''}</dd>
-        <dt>Атак в сек.</dt><dd>${rateTxt(s.rate)}${nl ? diff(rateTxt(s.rate), rateTxt(nl.rate)) : ''}</dd>
-      </dl><div class="row"></div>`);
-    const row = popup.querySelector('.row');
-    const up = document.createElement('button');
-    up.className = 'primary';
-    if (nl) { up.textContent = `Улучшить ${nl.cost}`; up.dataset.cost = nl.cost; up.disabled = game.gold < nl.cost; up.onclick = () => { game.upgrade(t.i); renderPopup(); }; }
-    else { up.textContent = 'Макс. уровень'; up.disabled = true; }
-    const sell = document.createElement('button');
-    sell.className = 'danger'; sell.textContent = `Продать +${game.sellValue(t)}`;
-    sell.onclick = () => { game.sell(t.i); closePopup(); };
-    row.append(up, sell);
+  const u = C.UNITS[t.unit], s = game.stats(t), nl = u.levels[t.level];
+  const d = (a, b) => (b !== undefined && b !== a ? ` <i>→ ${b}</i>` : '');
+  if (game.targeting !== 'meteor') {
+    info.innerHTML = `<b>${u.name}</b> · ур. ${t.level}<br>урон ${s.dmg}${nl ? d(s.dmg, nl.dmg) : ''} · дальн. ${s.range}${nl ? d(s.range, nl.range) : ''}`;
   }
-  // позиция рядом с башней
-  const sx = cv.clientWidth / C.W, sy = cv.clientHeight / C.H;
-  const pw = popup.offsetWidth, ph = popup.offsetHeight;
-  let x = t.x * sx + 16 * sx, y = (t.y - 40) * sy;
-  if (x + pw > cv.clientWidth - 4) x = t.x * sx - 16 * sx - pw;
-  x = Math.max(4, Math.min(cv.clientWidth - pw - 4, x));
-  y = Math.max(4, Math.min(cv.clientHeight - ph - 4, y));
-  popup.style.left = x + 'px'; popup.style.top = y + 'px';
+  if (nl) { up.textContent = `Улучшить ${nl.cost}`; up.disabled = game.gold < nl.cost; }
+  else { up.textContent = 'Макс. уровень'; up.disabled = true; }
+  sell.textContent = `Продать +${game.sellValue(t)}`; sell.disabled = false;
 }
 
 // ---------- ввод ----------
@@ -152,20 +122,26 @@ cv.addEventListener('click', ev => {
   if (game.phase === 'over') return;
   if (game.targeting === 'meteor') { game.cast('meteor', p.x, p.y); return; }
   const i = game.slotAt(p.x, p.y);
-  if (i >= 0 && i !== game.selected) openPopup(i); else closePopup();
+  if (i < 0) { game.selected = -1; dirty = true; return; }
+  const t = game.towers[i];
+  if (!t.unit && pick && game.build(i, pick)) { pick = null; game.selected = i; }
+  else game.selected = game.selected === i ? -1 : i;
+  dirty = true;
 });
+$('upgrade').onclick = () => { if (game.selected >= 0) game.upgrade(game.selected); };
+$('sell').onclick = () => { if (game.selected >= 0) { game.sell(game.selected); } };
 document.querySelectorAll('.spell').forEach(b => b.onclick = () => {
   const k = b.dataset.spell;
   if (game.targeting === k) { game.targeting = null; dirty = true; return; }
-  closePopup(); game.cast(k);
+  game.cast(k);
 });
 $('next').onclick = () => game.callWave();
 $('speed').onclick = () => { game.speed = game.speed === 1 ? 2 : 1; dirty = true; };
 $('pause').onclick = () => { game.paused = !game.paused; dirty = true; };
 window.addEventListener('keydown', ev => {
   if (ev.key === ' ') { ev.preventDefault(); game.paused = !game.paused; dirty = true; }
-  if (ev.key === 'Escape') { game.targeting = null; closePopup(); dirty = true; }
-  for (const [k, sp] of Object.entries(C.SPELLS)) if (ev.key === sp.key && !$('sp-' + k).disabled) { closePopup(); game.cast(k); }
+  if (ev.key === 'Escape') { game.targeting = null; game.selected = -1; pick = null; dirty = true; }
+  for (const [k, sp] of Object.entries(C.SPELLS)) if (ev.key === sp.key && !$('sp-' + k).disabled) game.cast(k);
 });
 
 // ---------- баннер волны ----------
@@ -181,37 +157,46 @@ function showBanner(d) {
 // ---------- экраны ----------
 function showStart() {
   overlay.hidden = false;
-  overlay.innerHTML = `<div class="card">
+  overlay.innerHTML = `<div class="card frame">
     <h1>Стражи Рубежа</h1>
-    <p class="lead">Орда идёт к замку по лесной дороге. Строй каменные башни и сажай на них защитников.</p>
-    <div class="roster"></div>
+    <p class="lead">Орда идёт к замку по лесной дороге. Ставь башни на каменные фундаменты и сажай на них защитников.</p>
+    <div class="roster">${C.UNIT_ORDER.map(portrait).join('')}</div>
     <ul>
-      <li>Нажми на каменную площадку у дороги и выбери защитника</li>
+      <li>Нажми на фундамент, затем выбери защитника в панели «Постройка»</li>
       <li>Нажми на готовую башню, чтобы улучшить или продать её</li>
       <li>6 волн, в каждой один вид врагов. Последним идёт тролль-вождь</li>
-      <li>Мана копится сама: Метеор, Мороз и Ускорение внизу экрана</li>
+      <li>Мана копится сама: Метеор, Мороз и Ускорение справа внизу</li>
     </ul>
     <button class="primary" id="go">В бой</button>
   </div>`;
-  const roster = overlay.querySelector('.roster');
-  for (const k of C.UNIT_ORDER) roster.append(unitIcon(k));
-  $('go').onclick = () => {
-    overlay.hidden = true;
-    game.phase = 'break'; game.breakT = 20;
-    dirty = true;
-  };
+  $('go').onclick = () => { overlay.hidden = true; game.phase = 'break'; game.breakT = 20; dirty = true; };
 }
 function showEnd(r) {
-  closePopup();
+  game.selected = -1; pick = null;
   const mm = Math.floor(r.time / 60), ss = String(Math.floor(r.time % 60)).padStart(2, '0');
   overlay.hidden = false;
-  overlay.innerHTML = `<div class="card">
+  overlay.innerHTML = `<div class="card frame">
     <h1 class="${r.win ? '' : 'lose'}">${r.win ? 'Замок выстоял!' : 'Замок пал'}</h1>
     <p class="lead">${r.win ? (r.bossLeaked ? 'Тролль проломил ворота, но стены устояли. Попробуй сразить его до ворот.' : 'Тролль-вождь повержен, орда отступает.') : 'Орда прорвалась через ворота. Попробуй другую расстановку.'}</p>
     <ul><li>Время боя: ${mm}:${ss}</li><li>Врагов повержено: ${r.kills}</li><li>Жизней замка осталось: ${r.lives}</li></ul>
     <button class="primary" id="again">Играть снова</button>
   </div>`;
   $('again').onclick = () => { game.reset(); showStart(); };
+}
+
+// ---------- автоигра для проверки: ?autoplay&speed=8 ----------
+const autoplay = params.has('autoplay');
+const PLAN = [[1, 'archer'], [5, 'archer'], [2, 'lich'], [4, 'cyclops'], [0, 'archer'], [3, 'dragon'], [6, 'cyclops']];
+function autoStep() {
+  if (game.phase === 'prep') { overlay.hidden = true; game.phase = 'break'; game.breakT = 2; }
+  if (params.has('nobuild')) return;
+  const nextBuild = PLAN.find(([i]) => !game.towers[i].unit);
+  if (nextBuild) game.build(nextBuild[0], nextBuild[1]);
+  else for (const t of game.towers) if (t.unit && game.upgrade(t.i)) break;
+  if (game.mana >= 80 && game.enemies.length) {
+    const e = game.enemies.reduce((a, b) => (a.d > b.d ? a : b));
+    game.cast('meteor', e.x, e.y);
+  }
 }
 
 // ---------- цикл ----------
@@ -226,23 +211,20 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// ---------- автоигра для проверки: ?autoplay&speed=8 ----------
-const autoplay = params.has('autoplay');
-const PLAN = [[1, 'archer'], [4, 'lich'], [3, 'cyclops'], [5, 'dragon'], [6, 'archer'], [0, 'archer'], [2, 'lich'], [7, 'cyclops']];
-function autoStep() {
-  if (game.phase === 'prep') { overlay.hidden = true; game.phase = 'break'; game.breakT = 2; }
-  if (params.has('nobuild')) return;
-  const nextBuild = PLAN.find(([i]) => !game.towers[i].unit);
-  if (nextBuild) game.build(nextBuild[0], nextBuild[1]);
-  else for (const t of game.towers) if (t.unit && game.upgrade(t.i)) break;
-  if (game.mana >= 80 && game.enemies.length) {
-    const e = game.enemies.reduce((a, b) => (a.d > b.d ? a : b));
-    game.cast('meteor', e.x, e.y);
-  }
-}
-
-fit();
-showStart();
-if (autoplay) { game.speed = +(params.get('speed') || 4); }
-fit();
-requestAnimationFrame(frame);
+loadAssets().then(() => {
+  game = new Game(cv, (ev, data) => {
+    if (ev === 'change') dirty = true;
+    if (ev === 'wave') showBanner(data);
+    if (ev === 'end') showEnd(data);
+  });
+  window.__game = game;
+  buildUnitButtons();
+  fit();
+  showStart();
+  if (autoplay) game.speed = +(params.get('speed') || 4);
+  fit();
+  requestAnimationFrame(frame);
+}).catch(err => {
+  overlay.hidden = false;
+  overlay.innerHTML = `<div class="card frame"><h1 class="lose">Ошибка загрузки</h1><p class="lead">${err.message}. Обнови страницу.</p></div>`;
+});

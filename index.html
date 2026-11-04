@@ -5,19 +5,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;700&display=swap">
 <style>
-  /* Единый тёмный фэнтези-интерфейс: каменные панели, золото, кровь. Игра всегда в одной теме. */
+  /* Интерфейс в духе концепта: тёмные панели в деревянной раме, золотые заголовки. Игра всегда в одной тёмной теме. */
   :root {
-    --bg: #12131a;
-    --panel: #232634;
-    --panel-hi: #313549;
-    --edge: #07080c;
-    --ink: #ece4cf;
-    --muted: #9a94a6;
+    --bg: #0e1016;
+    --panel: #1c2130;
+    --panel-hi: #2b3247;
+    --wood: #6b4528;
+    --wood-dk: #2a170a;
+    --ink: #efe6cf;
+    --muted: #a59d8c;
     --gold: #f3c843;
-    --gold-dk: #9a6b1c;
-    --blood: #d0402e;
     --mana: #4a8fe8;
-    --ok: #5fd04a;
+    --ok: #6ee05a;
     --font: 'Rubik', 'Segoe UI', system-ui, sans-serif;
     --pixel: 'Press Start 2P', 'Courier New', monospace;
     color-scheme: dark;
@@ -25,121 +24,109 @@
   html, body { height: 100%; }
   [hidden] { display: none !important; }
   body {
-    background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px;
+    background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
-    padding-block: 8px; box-sizing: border-box;
+    padding-block: 8px; box-sizing: border-box; margin: 0;
     display: flex; justify-content: center; align-items: center; overflow: hidden;
     -webkit-user-select: none; user-select: none;
   }
-  #app { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 1440px; }
-  .bar {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
-    background: var(--panel); border: 2px solid var(--edge);
-    box-shadow: inset 0 2px 0 var(--panel-hi), inset 0 -2px 0 #15171f;
-    padding: 6px 10px; min-height: 34px;
+  #app { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+  .frame {
+    background: var(--panel); border: 3px solid var(--wood);
+    box-shadow: 0 0 0 2px var(--wood-dk), inset 0 0 0 2px var(--wood-dk), inset 0 3px 0 2px var(--panel-hi);
+    border-radius: 4px;
   }
-  .stat { display: flex; align-items: center; gap: 6px; font-family: var(--pixel); font-size: 14px; font-variant-numeric: tabular-nums; }
-  .stat canvas { width: 18px; height: 18px; image-rendering: pixelated; }
-  .gold { color: var(--gold); }
-  .life { color: #ff8a7a; }
-  #wave { font-size: 16px; color: var(--ink); }
-  #wave b { color: var(--gold); }
+
+  /* верхняя панель */
+  #top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pill { display: flex; align-items: center; gap: 7px; padding: 5px 12px; font-family: var(--pixel); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .pill canvas { width: 18px; height: 18px; image-rendering: pixelated; }
+  .pill.gold { color: var(--gold); }
+  .pill.life { color: #ff8a7a; }
+  #wave { font-family: var(--font); font-size: 15px; }
+  #wave b { color: var(--gold); font-family: var(--pixel); font-size: 12px; font-weight: 400; }
   .spacer { flex: 1; }
+
   button {
-    font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--ink); cursor: pointer;
-    background: #3b4058; border: 2px solid var(--edge);
-    box-shadow: inset 0 2px 0 #565c7c, inset 0 -2px 0 #262a3a;
+    font-family: var(--font); font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer;
+    background: #2f3550; border: 2px solid var(--wood-dk); border-radius: 3px;
+    box-shadow: inset 0 2px 0 #4a5276, inset 0 -2px 0 #1b1f30;
     padding: 4px 10px; min-height: 32px;
   }
-  button:hover:not(:disabled) { background: #474d6a; }
-  button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 -1px 0 #565c7c; }
+  button:hover:not(:disabled) { filter: brightness(1.15); }
+  button:active:not(:disabled) { transform: translateY(1px); }
   button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
   button:disabled { opacity: 0.45; cursor: not-allowed; }
   button.primary { background: #8a5a14; box-shadow: inset 0 2px 0 #c08a2a, inset 0 -2px 0 #5a3a0c; color: #fff4d6; }
-  button.primary:hover:not(:disabled) { background: #a06a1a; }
-  button.danger { background: #7a2a22; box-shadow: inset 0 2px 0 #a8443a, inset 0 -2px 0 #4a1812; }
-  button.on { background: #2d5f9a; box-shadow: inset 0 2px 0 #4a8fe8, inset 0 -2px 0 #1a3a60; }
+  button.blue { background: #2456a8; box-shadow: inset 0 2px 0 #4a8fe8, inset 0 -2px 0 #163a74; }
+  button.red { background: #8e2a22; box-shadow: inset 0 2px 0 #c0473b, inset 0 -2px 0 #5a1610; }
+  button.on { outline: 2px solid var(--gold); outline-offset: -2px; }
 
-  #stage { position: relative; align-self: center; line-height: 0; border: 2px solid var(--edge); background: #0b0c10; }
-  #cv { display: block; image-rendering: pixelated; image-rendering: crisp-edges; cursor: pointer; touch-action: manipulation; }
+  #stage { position: relative; align-self: center; line-height: 0; }
+  #cv { display: block; image-rendering: pixelated; cursor: pointer; touch-action: manipulation; border-radius: 2px; }
 
-  /* мана и заклинания */
-  #mana { display: flex; align-items: center; gap: 8px; min-width: 150px; flex: 1 1 160px; max-width: 280px; font-variant-numeric: tabular-nums; }
-  #mana .track { flex: 1; height: 12px; background: #0c1424; border: 2px solid var(--edge); position: relative; }
-  #mana .fill { position: absolute; inset: 0 auto 0 0; background: var(--mana); box-shadow: inset 0 2px 0 #8ec0ff; }
-  .spell { display: flex; align-items: center; gap: 6px; }
-  .spell canvas { width: 20px; height: 20px; image-rendering: pixelated; }
-  .spell small { color: #8ec0ff; font-size: 13px; }
-  #hint { color: var(--muted); font-size: 14px; line-height: 1.3; }
-
-  /* всплывающее меню башни */
-  #popup {
-    position: absolute; z-index: 5; line-height: 1.25; width: 236px;
-    background: var(--panel); border: 2px solid var(--edge);
-    box-shadow: inset 0 2px 0 var(--panel-hi), 0 6px 0 rgba(0,0,0,0.35);
-    padding: 8px; display: flex; flex-direction: column; gap: 6px;
-  }
-  #popup h3 { margin: 0; font-size: 16px; color: var(--gold); text-wrap: balance; }
-  #popup p { margin: 0; color: var(--muted); font-size: 13px; }
-  .units { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .unit { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; min-height: 0; }
-  .unit canvas { width: 40px; height: 40px; image-rendering: pixelated; }
-  .unit span { font-size: 14px; }
-  .unit .cost { color: var(--gold); font-size: 13px; }
+  /* нижние панели как в концепте */
+  #bottom { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.9fr) minmax(0, 1fr); gap: 8px; }
+  .panel { padding: 4px 8px 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .panel h2 { margin: 0; text-align: center; font-size: 15px; font-weight: 700; color: var(--ink); letter-spacing: 0.02em; }
+  .slots { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .unit { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px 4px 4px; min-width: 64px; background: #232a3d; }
+  .unit .pic { width: 46px; height: 46px; display: grid; place-items: end center; background: #11151f; border: 2px solid var(--wood-dk); border-radius: 2px; overflow: hidden; }
+  .unit img { max-width: 44px; max-height: 44px; image-rendering: pixelated; }
+  .unit span { font-size: 12px; font-weight: 500; }
+  .unit .cost { color: var(--gold); font-family: var(--pixel); font-size: 9px; }
+  .unit.on { background: #4a3a14; }
+  #info { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.3; min-height: 2.6em; }
+  #info b { color: var(--gold); }
+  #info i { color: var(--ok); font-style: normal; }
   .row { display: flex; gap: 6px; }
-  .row button { flex: 1; }
-  .stats { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; font-size: 13px; font-variant-numeric: tabular-nums; }
-  .stats dt { color: var(--muted); }
-  .stats dd { margin: 0; }
-  .stats dd i { color: var(--ok); font-style: normal; }
+  .row button { flex: 1; font-size: 15px; min-height: 38px; }
+  .spells { display: flex; gap: 6px; justify-content: center; }
+  .spell { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px 6px; min-width: 62px; }
+  .spell canvas { width: 30px; height: 30px; image-rendering: pixelated; }
+  .spell span { font-size: 12px; }
+  .spell small { color: #8ec0ff; font-family: var(--pixel); font-size: 8px; }
+  #mana { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  #mana .track { flex: 1; height: 10px; background: #0c1424; border: 2px solid var(--wood-dk); position: relative; }
+  #mana .fill { position: absolute; inset: 0 auto 0 0; background: var(--mana); box-shadow: inset 0 2px 0 #8ec0ff; }
 
   /* баннер волны */
   #banner {
-    position: absolute; left: 50%; top: 14%; transform: translateX(-50%); z-index: 4; pointer-events: none;
-    background: rgba(18,19,26,0.88); border: 2px solid var(--edge); box-shadow: inset 0 2px 0 var(--panel-hi);
-    padding: 8px 18px; line-height: 1.2; text-align: center; white-space: nowrap;
-    font-family: var(--pixel); font-size: clamp(12px, 1.8vw, 18px); color: var(--gold);
+    position: absolute; left: 50%; top: 12%; transform: translateX(-50%); z-index: 4; pointer-events: none;
+    background: rgba(18,19,26,0.9); border: 3px solid var(--wood); box-shadow: 0 0 0 2px var(--wood-dk);
+    padding: 10px 20px; line-height: 1.3; text-align: center; white-space: nowrap;
+    font-family: var(--pixel); font-size: clamp(12px, 1.6vw, 18px); color: var(--gold);
     animation: drop 2.4s ease-out forwards;
   }
-  #banner small { display: block; margin-top: 6px; font-family: var(--font); font-size: 15px; color: var(--ink); font-weight: 400; }
+  #banner small { display: block; margin-top: 6px; font-family: var(--font); font-size: 15px; color: var(--ink); }
   #banner.boss { color: #ff8a7a; }
   @keyframes drop { 0% { opacity: 0; transform: translate(-50%, -12px); } 12%, 75% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
 
   /* экраны старта и финала */
-  #overlay {
-    position: absolute; inset: 0; z-index: 6; line-height: 1.35;
-    display: flex; align-items: center; justify-content: center; padding: 12px;
-    background: rgba(8,9,14,0.72);
-  }
-  .card {
-    background: var(--panel); border: 2px solid var(--edge); box-shadow: inset 0 2px 0 var(--panel-hi);
-    padding: 16px 20px; max-width: 460px; width: 100%; display: flex; flex-direction: column; gap: 10px;
-    max-height: 100%; overflow: auto; box-sizing: border-box;
-  }
-  .card h1 { margin: 0; font-family: var(--pixel); line-height: 1.3; font-size: clamp(18px, 3vw, 28px); color: var(--gold); text-shadow: 2px 2px 0 var(--edge); text-wrap: balance; }
+  #overlay { position: absolute; inset: 0; z-index: 6; line-height: 1.35; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(8,9,14,0.6); }
+  .card { padding: 16px 20px; max-width: 480px; width: 100%; display: flex; flex-direction: column; gap: 10px; max-height: 100%; overflow: auto; box-sizing: border-box; }
+  .card h1 { margin: 0; font-family: var(--pixel); line-height: 1.3; font-size: clamp(18px, 2.6vw, 26px); color: var(--gold); text-shadow: 2px 2px 0 var(--wood-dk); text-wrap: balance; }
   .card h1.lose { color: #ff8a7a; }
-  .card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: var(--ink); font-size: 14px; }
+  .card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   .card .lead { margin: 0; color: var(--muted); font-size: 14px; }
-  .card .roster { display: flex; gap: 10px; flex-wrap: wrap; }
-  .card .roster canvas { width: 36px; height: 36px; image-rendering: pixelated; }
+  .card .roster { display: flex; gap: 12px; align-items: flex-end; }
+  .card .roster img { height: 48px; image-rendering: pixelated; }
   .card button { align-self: flex-start; font-size: 18px; padding: 6px 18px; }
 
-  @media (max-width: 640px) {
-    body { font-size: 13px; padding-block: 4px; }
-    .stat { font-size: 15px; }
-    #hint { display: none; }
-    button { font-size: 13px; padding: 3px 8px; min-height: 30px; }
-    #popup { width: 200px; }
+  @media (max-width: 760px) {
+    #bottom { grid-template-columns: 1fr 1fr; }
+    #bottom .build { grid-column: 1 / -1; }
+    .pill { font-size: 11px; padding: 4px 8px; }
   }
   @media (prefers-reduced-motion: reduce) { #banner { animation-duration: 0.01s; animation-fill-mode: none; } }
 </style>
 
 <div id="app">
-  <header class="bar" id="top">
-    <div class="stat gold" title="Золото"><canvas data-icon="coin" width="9" height="9"></canvas><span id="gold">0</span></div>
-    <div class="stat life" title="Жизни замка"><canvas data-icon="heart" width="9" height="9"></canvas><span id="lives">0</span></div>
-    <div id="wave">Подготовка</div>
+  <header id="top">
+    <div class="pill gold frame" title="Золото"><canvas data-icon="coin" width="9" height="9"></canvas><span id="gold">0</span></div>
+    <div class="pill frame" id="wave">Подготовка</div>
+    <div class="pill life frame" title="Жизни замка"><canvas data-icon="heart" width="9" height="9"></canvas><span id="lives">0</span></div>
     <div class="spacer"></div>
     <button id="next" class="primary">Волна сейчас</button>
     <button id="speed" title="Скорость игры">×1</button>
@@ -147,17 +134,29 @@
   </header>
 
   <div id="stage">
-    <canvas id="cv" width="480" height="270" aria-label="Игровое поле"></canvas>
-    <div id="popup" hidden></div>
+    <canvas id="cv" width="1036" height="624" aria-label="Игровое поле"></canvas>
     <div id="overlay"></div>
   </div>
 
-  <footer class="bar" id="bottom">
-    <div id="mana" title="Мана героя"><span>Мана</span><div class="track"><div class="fill" id="manaFill"></div></div><span id="manaNum">0</span></div>
-    <button class="spell" id="sp-meteor" data-spell="meteor"><canvas data-icon="meteor" width="9" height="9"></canvas>Метеор <small>45</small></button>
-    <button class="spell" id="sp-slow" data-spell="slow"><canvas data-icon="frost" width="9" height="9"></canvas>Мороз <small>35</small></button>
-    <button class="spell" id="sp-haste" data-spell="haste"><canvas data-icon="bolt" width="9" height="9"></canvas>Ускорение <small>40</small></button>
-    <div id="hint">Нажми на каменную площадку, чтобы поставить башню</div>
+  <footer id="bottom">
+    <section class="panel frame build">
+      <h2>Постройка</h2>
+      <div class="slots" id="units"></div>
+    </section>
+    <section class="panel frame">
+      <h2>Улучшение башни</h2>
+      <div id="info">Выбери башню на карте</div>
+      <div class="row"><button id="upgrade" class="blue">Улучшить</button><button id="sell" class="red">Продать</button></div>
+    </section>
+    <section class="panel frame">
+      <h2>Способности героя</h2>
+      <div class="spells">
+        <button class="spell" id="sp-meteor" data-spell="meteor"><canvas data-icon="meteor" width="9" height="9"></canvas><span>Метеор</span><small>45</small></button>
+        <button class="spell" id="sp-slow" data-spell="slow"><canvas data-icon="frost" width="9" height="9"></canvas><span>Мороз</span><small>35</small></button>
+        <button class="spell" id="sp-haste" data-spell="haste"><canvas data-icon="bolt" width="9" height="9"></canvas><span>Ускорение</span><small>40</small></button>
+      </div>
+      <div id="mana" title="Мана героя"><span>Мана</span><div class="track"><div class="fill" id="manaFill"></div></div><span id="manaNum">0</span></div>
+    </section>
   </footer>
 </div>
 
