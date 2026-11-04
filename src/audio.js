@@ -239,10 +239,12 @@ const SFX = {
   // звон монет
   sell() { for (let i = 0; i < 6; i++) bell(rnd(2400, 4300), 0.22, { vol: 0.045, ratio: 2.76, index: 0.6, when: rnd(0, 0.22) }); },
   // боевой рог и барабаны перед волной
-  wave() {
-    horn(midi(45), 0.55, { vol: 0.16 });
-    horn(midi(50), 1.3, { vol: 0.17, when: 0.55 });
-    drum(0.5, { when: 0 }); drum(0.4, { when: 0.55 }); drum(0.55, { when: 0.85 });
+  wave() { // светлый призыв рога в мажоре: ре — ля — ре октавой выше
+    horn(midi(62), 0.22, { vol: 0.12, bright: 2400 });
+    horn(midi(69), 0.22, { vol: 0.12, bright: 2400, when: 0.24 });
+    horn(midi(74), 0.9, { vol: 0.13, bright: 2600, when: 0.48 });
+    horn(midi(66), 0.9, { vol: 0.07, bright: 2200, when: 0.48 });
+    drum(0.22, { when: 0, pitch: 1.4 }); drum(0.25, { when: 0.48, pitch: 1.4 });
   },
   // вождь идёт: низкий рог, гонг и тяжёлая дробь
   boss() {
@@ -305,68 +307,76 @@ export function sfx(name) {
 }
 
 // ---------- фоновая музыка ----------
-// Спокойная тема в ре миноре, 4/4, медленно: низкие струнные держат аккорд, арфа роняет пару нот за такт,
-// мягкая флейта в низком регистре изредка ведёт мелодию. Без высоких нот и частого перебора.
-// Во время волны добавляется только приглушённый барабан, на боссе он тяжелее, а струнные ниже.
+// Светлая тема в ре мажоре, 3/4, как городская музыка фэнтези-RPG: арфа мягко перебирает аккорды,
+// струнные держат гармонию, щипковый бас на сильную долю, флейта ведёт напевную мелодию.
+// Через круг мелодию подхватывает арфа октавой ниже — для разнообразия.
+// В бою добавляется лёгкий барабан с бубном, на боссе барабан плотнее.
 // mood: 'calm' | 'battle' | 'boss' | 'off'
 let mood = 'calm';
 export function setMusicMood(m) { mood = m; }
 
 const BARS = [ // бас, аккорд
-  [38, [50, 53, 57]], // Dm
-  [36, [48, 52, 55]], // C
-  [34, [46, 50, 53]], // B♭
-  [33, [45, 49, 52]], // A
-  [38, [50, 53, 57]], // Dm
-  [43, [43, 46, 50]], // Gm
-  [41, [41, 45, 48]], // F
-  [33, [45, 49, 52]], // A
+  [38, [62, 66, 69]], // D
+  [43, [55, 59, 62]], // G
+  [47, [59, 62, 66]], // Bm
+  [45, [57, 61, 64]], // A
+  [38, [62, 66, 69]], // D
+  [43, [55, 59, 62]], // G
+  [40, [55, 59, 64]], // Em
+  [45, [57, 61, 64]], // A
 ];
-// мелодия флейты: [четверть в такте, нота, длина в четвертях] — по 1–2 долгие ноты на такт
+// мелодия: [восьмая в такте, нота, длина в восьмых]
 const MELODY = [
-  [[0, 62, 2], [2, 65, 2]],
-  [[0, 64, 3], [3, 62, 1]],
-  [[0, 62, 2], [2, 58, 2]],
-  [[0, 61, 4]],
-  [[0, 65, 2], [2, 69, 2]],
-  [[0, 67, 3], [3, 65, 1]],
-  [[0, 64, 2], [2, 60, 2]],
-  [[0, 61, 2], [2, 57, 2]],
+  [[0, 74, 3], [3, 76, 1], [4, 78, 2]],
+  [[0, 79, 4], [4, 78, 1], [5, 76, 1]],
+  [[0, 74, 3], [3, 73, 1], [4, 71, 2]],
+  [[0, 73, 4], [4, 69, 2]],
+  [[0, 78, 3], [3, 79, 1], [4, 81, 2]],
+  [[0, 83, 3], [3, 81, 1], [4, 79, 2]],
+  [[0, 78, 2], [2, 76, 2], [4, 79, 2]],
+  [[0, 76, 4], [4, 73, 2]],
 ];
-const BEAT = 60 / 66; // четверти при 66 ударах в минуту
+const ARP = [0, 1, 2, 3, 2, 1];
+const STEP = 60 / 104 / 2; // восьмые при 104 ударах в минуту
 let nextTime = 0, step = 0;
 
 function startMusic() {
   nextTime = ac.currentTime + 0.3;
   setInterval(() => {
     if (ac.state !== 'running') { nextTime = ac.currentTime + 0.1; return; }
-    while (nextTime < ac.currentTime + 0.4) { scheduleStep(step, nextTime); nextTime += BEAT; step++; }
-  }, 80);
+    while (nextTime < ac.currentTime + 0.3) { scheduleStep(step, nextTime); nextTime += STEP; step++; }
+  }, 60);
 }
 
 function scheduleStep(n, t) {
   if (mood === 'off' || muted) return;
   const when = t - ac.currentTime, bus = musicBus;
-  const barN = Math.floor(n / 4), s = n % 4, loop = Math.floor(barN / BARS.length);
+  const barN = Math.floor(n / 6), s = n % 6, loop = Math.floor(barN / BARS.length);
   const bar = barN % BARS.length;
   const [bass, chord] = BARS[bar];
   const fight = mood !== 'calm', boss = mood === 'boss';
+  const barLen = STEP * 6;
 
   if (s === 0) {
-    const sh = boss ? -12 : 0;
-    strings(chord.map(m => midi(m + sh)), BEAT * 4 + 0.8, { vol: 0.05, attack: 1.2, release: 1, when, bus, lp: boss ? 600 : 800 });
-    pluck(midi(bass), { dur: 3, vol: 0.32, soft: 0.75, lp: 600, when, bus });
+    strings(chord.map(midi), barLen + 0.4, { vol: 0.045, attack: 0.45, release: 0.5, when, bus, lp: 1500 });
+    pluck(midi(bass), { dur: 1.6, vol: 0.34, soft: 0.55, lp: 1000, when, bus });
   }
-  // арфа: две тихие ноты за такт, средний регистр
-  if (s === 0) pluck(midi(chord[0] + 12), { dur: 2.5, vol: 0.1, soft: 0.7, lp: 1800, when, bus });
-  if (s === 2) pluck(midi(chord[2]), { dur: 2.5, vol: 0.09, soft: 0.7, lp: 1800, when, bus });
+  if (s === 4) pluck(midi(bass + 7), { dur: 1, vol: 0.2, soft: 0.55, lp: 1000, when, bus });
+  // арфа
+  const tones = [chord[0] - 12, chord[1] - 12, chord[2] - 12, chord[0]];
+  pluck(midi(tones[ARP[s]]), { dur: 1.6, vol: s === 0 ? 0.13 : 0.09, soft: 0.45, lp: 2600, when, bus });
 
-  // мелодия звучит через круг, чтобы не надоедала
-  if (loop % 2 === 1) {
-    for (const [st, m, len] of MELODY[bar]) if (st === s) flute(midi(m), len * BEAT * 0.95, { vol: 0.06, when, bus });
+  // мелодия: флейта, а через круг — арфа октавой ниже
+  for (const [st, m, len] of MELODY[bar]) {
+    if (st !== s) continue;
+    if (loop % 2 === 0) flute(midi(m), len * STEP * 0.95, { vol: 0.08, when, bus });
+    else pluck(midi(m - 12), { dur: 2, vol: 0.2, soft: 0.35, lp: 3000, when, bus });
   }
 
-  // приглушённый барабан только в бою
-  if (fight && s === 0) drum(boss ? 0.32 : 0.2, { when, bus, pitch: boss ? 0.7 : 0.85 });
-  if (boss && s === 2) drum(0.18, { when, bus, pitch: 0.75 });
+  // лёгкий барабан и бубен в бою
+  if (fight) {
+    if (s === 0) drum(boss ? 0.3 : 0.2, { when, bus, pitch: boss ? 0.9 : 1.2 });
+    if (boss && s === 3) drum(0.18, { when, bus, pitch: 1 });
+    if (s === 2 || s === 4) noise(0.06, { filter: 'highpass', freq: 7000, vol: 0.05, when, bus });
+  }
 }
