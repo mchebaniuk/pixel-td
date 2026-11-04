@@ -1,0 +1,6 @@
+Звуки в этой папке взяты из игры Battle for Wesnoth (https://github.com/wesnoth/wesnoth, data/core/sounds)
+и перекодированы в MP3 моно. Лицензия: GNU GPL версии 2 или новее, авторы — участники проекта Wesnoth.
+
+skeleton-1/2  ← skeleton-die-1/2      goblin-1/2  ← goblin-die-1/2       wolf-1..4  ← wolf-die-1..4
+gargoyle-1/2  ← gryphon-die-1/2       orc-1..3    ← orc-die-1..3         troll-1..3 ← troll-die-1..3
+cyclops-1..4  ← ogre-hit-1..4 (кряхтение циклопа при броске)

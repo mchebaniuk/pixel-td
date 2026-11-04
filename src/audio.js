@@ -38,7 +38,33 @@ export function initAudio() {
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   // общее вибрато для струнных и флейты (в центах)
   lfo = ac.createOscillator(); lfo.frequency.value = 5.1; lfo.start();
+  loadSamples();
   startMusic();
+}
+
+// ---------- записанные звуки (голоса врагов и циклопа), см. assets/sounds/LICENSE.txt ----------
+const SAMPLE_SETS = { skeleton: 2, goblin: 2, wolf: 4, gargoyle: 2, orc: 3, troll: 3, cyclops: 4 };
+const samples = {};
+function loadSamples() {
+  for (const [name, n] of Object.entries(SAMPLE_SETS)) {
+    samples[name] = [];
+    for (let i = 1; i <= n; i++) {
+      fetch(`assets/sounds/${name}-${i}.mp3`).then(r => r.arrayBuffer())
+        .then(b => new Promise((ok, fail) => ac.decodeAudioData(b, ok, fail)))
+        .then(buf => samples[name].push(buf)).catch(() => {});
+    }
+  }
+}
+// случайный вариант записи, с чуть разной высотой, чтобы толпа не звучала одинаково
+function sample(name, vol = 0.8, when = 0) {
+  const set = samples[name];
+  if (!set || !set.length) return false;
+  const src = ac.createBufferSource(); src.buffer = set[Math.floor(Math.random() * set.length)];
+  src.playbackRate.value = rnd(0.92, 1.08);
+  const g = ac.createGain(); g.gain.value = vol;
+  src.connect(g); g.connect(sfxBus);
+  src.start(at(when));
+  return true;
 }
 
 function hallImpulse(sec) {
@@ -191,35 +217,6 @@ function drum(vol, o = {}) {
   noise(0.12, { filter: 'lowpass', freq: 900 * p, vol: vol * 0.45, when: o.when, bus });
 }
 
-// крик / рык: пила с падающей высотой через «гласные» полосы (форманты)
-function voice(f0, f1, dur, formants, vol, when, rasp = 0.5) {
-  // голос: связки (пила) + дыхание (шум) через «гласные» полосы; высота сначала чуть взлетает, потом падает,
-  // а хрип даёт быстрая неровная модуляция громкости — так получается крик/кряхтение, а не писк
-  const t = at(when);
-  const o = ac.createOscillator(); o.type = 'sawtooth';
-  o.frequency.setValueAtTime(f0, t);
-  o.frequency.linearRampToValueAtTime(f0 * 1.12, t + dur * 0.15);
-  o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-  const jit = ac.createOscillator(), jg = ac.createGain(); jit.type = 'triangle'; jit.frequency.value = rnd(17, 23); jg.gain.value = f0 * 0.05;
-  jit.connect(jg); jg.connect(o.frequency);
-  const src = ac.createGain(); src.gain.value = 1;
-  const fry = ac.createOscillator(), fg = ac.createGain(); fry.type = 'square'; fry.frequency.value = rnd(28, 40); fg.gain.value = rasp * 0.55;
-  fry.connect(fg); fg.connect(src.gain);
-  o.connect(src);
-  const br = ac.createBufferSource(); br.buffer = noiseBuf; br.loop = true;
-  const bg = ac.createGain(); bg.gain.value = rasp * 0.5; br.connect(bg); bg.connect(src);
-  const g = ac.createGain(); env(g, t, vol, 0.03, dur, dur * 0.45);
-  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200;
-  formants.forEach((f, n) => {
-    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 2.5;
-    const fgn = ac.createGain(); fgn.gain.value = [1.4, 0.8, 0.4][n] ?? 0.3;
-    src.connect(bp); bp.connect(fgn); fgn.connect(lp);
-  });
-  lp.connect(g); g.connect(sfxBus);
-  for (const n of [o, jit, fry]) { n.start(t); n.stop(t + dur + 0.05); }
-  br.start(t, Math.random() * 0.5); br.stop(t + dur + 0.05);
-}
-
 // ---------- звуки игры ----------
 // минимальный интервал между повторами, чтобы толпа башен не сливалась в шум
 const GAP = { arrow: 0.07, hit: 0.05, zap: 0.12, death: 0.08, rock: 0.09, throw: 0.1, click: 0.04 };
@@ -240,9 +237,9 @@ const SFX = {
     noise(0.04, { freq: rnd(1100, 1500), q: 3, vol: 0.18 });
     thump(rnd(240, 280), 140, 0.05, 0.1);
   },
-  // циклоп кряхтит и швыряет валун: тяжёлый низкий взмах
+  // циклоп кряхтит (запись) и швыряет валун: тяжёлый низкий взмах
   throw() {
-    voice(rnd(125, 140), 85, 0.22, [480, 950], 0.11);
+    sample('cyclops', 0.5);
     noise(0.38, { freq: 180, to: 650, q: 1.8, vol: 0.2, attack: 0.12, when: 0.08 });
   },
   // валун бьёт в землю: тяжёлый удар, хруст и осыпь камней
@@ -260,38 +257,10 @@ const SFX = {
     noise(0.12, { filter: 'highpass', freq: 3500, vol: 0.07, when: 0.3 }); // пшш — ожог на цели
   },
   // падение врага: глухой удар и звяканье снаряжения
-  // гибель врага — у каждого вида свой голос; тело падает с глухим ударом
+  // гибель врага — настоящие записанные голоса (скелет, гоблин, волк, гаргулья, орк, тролль)
   death(type) {
-    const k = rnd(0.9, 1.12); // чуть разная высота, чтобы толпа не звучала одинаково
-    noise(0.14, { filter: 'lowpass', freq: 320, vol: 0.22, when: 0.06 });
-    switch (type) {
-      case 'skeleton': // глухой загробный стон и рассыпающиеся кости
-        voice(190 * k, 120 * k, 0.5, [400, 800], 0.09, 0, 0.8);
-        for (let i = 0; i < 6; i++) noise(0.035, { freq: rnd(1300, 2600), q: 9, vol: 0.11, when: 0.1 + i * rnd(0.03, 0.06) });
-        break;
-      case 'goblin': // сдавленное кряхтение: «кхх-эээх»
-        voice(330 * k, 190 * k, 0.12, [650, 1250, 2500], 0.12, 0, 0.9);
-        voice(300 * k, 150 * k, 0.32, [700, 1300, 2600], 0.15, 0.12, 0.7);
-        break;
-      case 'wolf': // скулёж волка
-        voice(760 * k, 420 * k, 0.16, [850, 1700], 0.12, 0, 0.3);
-        voice(560 * k, 300 * k, 0.28, [850, 1700], 0.1, 0.15, 0.3);
-        break;
-      case 'gargoyle': // каменный рык и осыпь
-        voice(520 * k, 260 * k, 0.3, [900, 1900], 0.1, 0, 0.8);
-        noise(0.4, { filter: 'lowpass', freq: 700, to: 250, vol: 0.25, when: 0.08 });
-        for (let i = 0; i < 4; i++) noise(0.04, { freq: rnd(600, 1300), q: 6, vol: 0.12, when: 0.12 + i * rnd(0.04, 0.08) });
-        break;
-      case 'orc': // хриплое «уурргх» и лязг доспеха
-        voice(135 * k, 70 * k, 0.45, [480, 1000, 2300], 0.2, 0, 0.8);
-        bell(rnd(1500, 1900), 0.25, { vol: 0.05, ratio: 2.76, index: 1, when: 0.2 });
-        break;
-      case 'troll': // рёв вождя
-        voice(115, 55, 1, [400, 900, 2000], 0.28, 0, 0.9);
-        break;
-      default:
-        voice(260 * k, 130 * k, 0.3, [650, 1250], 0.12);
-    }
+    const vol = { skeleton: 0.7, goblin: 0.8, wolf: 0.65, gargoyle: 0.55, orc: 0.8, troll: 1 }[type] ?? 0.7;
+    if (!sample(type, vol)) noise(0.14, { filter: 'lowpass', freq: 320, vol: 0.22 }); // запись ещё не загрузилась — глухой удар
   },
   // плотник: два удара молотом и аккорд арфы
   build() {
