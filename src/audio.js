@@ -208,7 +208,7 @@ function voice(f0, f1, dur, formants, vol, when) {
 
 // ---------- звуки игры ----------
 // минимальный интервал между повторами, чтобы толпа башен не сливалась в шум
-const GAP = { arrow: 0.07, zap: 0.09, fire: 0.18, death: 0.08, rock: 0.09, throw: 0.1, click: 0.04 };
+const GAP = { arrow: 0.07, hit: 0.05, zap: 0.12, fire: 0.6, death: 0.08, rock: 0.09, throw: 0.1, click: 0.04 };
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 const SFX = {
@@ -221,46 +221,37 @@ const SFX = {
     // свист улетающей стрелы
     noise(0.22, { freq: rnd(3200, 3800), to: 850, q: 1.3, vol: 0.11, attack: 0.03, when: 0.02 });
   },
-  // взмах тяжёлого валуна
-  throw() { noise(0.32, { freq: 280, to: 820, q: 1.4, vol: 0.16, attack: 0.08 }); },
-  // удар камня о землю: глухо и с треском
+  // стрела вонзается в цель: короткий деревянный стук
+  hit() {
+    noise(0.04, { freq: rnd(1100, 1500), q: 3, vol: 0.18 });
+    thump(rnd(240, 280), 140, 0.05, 0.1);
+  },
+  // циклоп кряхтит и швыряет валун: тяжёлый низкий взмах
+  throw() {
+    voice(rnd(125, 140), 85, 0.22, [480, 950], 0.11);
+    noise(0.38, { freq: 180, to: 650, q: 1.8, vol: 0.2, attack: 0.12, when: 0.08 });
+  },
+  // валун бьёт в землю: тяжёлый удар, хруст и осыпь камней
   rock() {
-    thump(95, 34, 0.32, 0.5);
-    noise(0.35, { filter: 'lowpass', freq: 420, vol: 0.45 });
-    noise(0.06, { freq: 2600, q: 2, vol: 0.12, when: 0.01 });
+    thump(85, 30, 0.4, 0.55);
+    noise(0.4, { filter: 'lowpass', freq: 520, to: 160, vol: 0.5 });
+    noise(0.08, { freq: 2200, q: 1.5, vol: 0.16 });
+    for (let i = 0; i < 7; i++) noise(0.03, { freq: rnd(900, 2800), q: 5, vol: rnd(0.06, 0.12), when: 0.04 + i * rnd(0.025, 0.05) });
   },
-  // луч жреца: без нот — шумовой поток с «вжж»-проходом фильтра, низкий электрический гул,
-  // потрескивание и глухой удар в цель
+  // луч жреца: свист и шипение — узкая полоса шума взлетает вверх, вокруг шипит воздух, низов нет совсем
   zap() {
-    const t = at(0), dur = 0.42;
-    // дрожание, общее для гула и шипения: даёт «электрическое» жужжание
-    const lf = ac.createOscillator(); lf.frequency.value = rnd(38, 46);
-    const lg = ac.createGain(); lg.gain.value = 0.5; lf.connect(lg);
-    const buzz = ac.createGain(); buzz.gain.value = 0.6; lg.connect(buzz.gain);
-    const out = ac.createGain(); env(out, t, 1, 0.03, dur, 0.15);
-    buzz.connect(out); out.connect(sfxBus);
-    // поток: шум через резонансный фильтр, который проносится вверх и оседает
-    const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
-    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.2;
-    bp.frequency.setValueAtTime(500, t); bp.frequency.exponentialRampToValueAtTime(1900, t + 0.12);
-    bp.frequency.exponentialRampToValueAtTime(800, t + dur);
-    const ng = ac.createGain(); ng.gain.value = 0.32;
-    src.connect(bp); bp.connect(ng); ng.connect(buzz);
-    // низкий гул
-    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
-    const hg = ac.createGain(); hg.gain.value = 0.1;
-    for (const f of [55, 82.5]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(lp); o.start(t); o.stop(t + dur + 0.05); }
-    lp.connect(hg); hg.connect(buzz);
-    src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
-    lf.start(t); lf.stop(t + dur + 0.05);
-    noise(dur, { filter: 'highpass', freq: 5000, vol: 0.035, attack: 0.05 }); // шипение по краям луча
-    for (let i = 0; i < 4; i++) noise(0.012, { filter: 'highpass', freq: 2500, vol: 0.09, when: rnd(0.04, dur - 0.05) }); // треск
-    noise(0.09, { filter: 'lowpass', freq: 1100, vol: 0.2, when: 0.05 }); // удар в цель
+    noise(0.36, { freq: 2200, to: 4600, q: 14, vol: 0.22, attack: 0.03 });
+    noise(0.36, { freq: 3300, to: 6200, q: 9, vol: 0.12, attack: 0.05, when: 0.02 });
+    noise(0.42, { filter: 'highpass', freq: 5500, vol: 0.1, attack: 0.04 });
+    noise(0.12, { filter: 'highpass', freq: 3500, vol: 0.07, when: 0.3 }); // пшш — ожог на цели
   },
-  // рёв пламени
+  // дракон выдыхает пламя: вдох, затем ревущий поток огня с треском
   fire() {
-    noise(0.36, { filter: 'lowpass', freq: 1100, to: 380, vol: 0.24, attack: 0.05 });
-    noise(0.3, { freq: 220, q: 1, vol: 0.2, attack: 0.04 });
+    noise(0.12, { freq: 700, to: 1600, q: 1.2, vol: 0.08, attack: 0.08 }); // короткий вдох
+    noise(0.75, { filter: 'lowpass', freq: 2200, to: 700, vol: 0.32, attack: 0.1, when: 0.08 });  // рёв потока
+    noise(0.7, { freq: 420, q: 0.8, vol: 0.22, attack: 0.12, when: 0.08 });                         // глубина огня
+    noise(0.6, { filter: 'highpass', freq: 3500, vol: 0.05, attack: 0.1, when: 0.1 });             // шипение языков
+    for (let i = 0; i < 6; i++) noise(0.015, { filter: 'highpass', freq: 2000, vol: 0.1, when: 0.12 + rnd(0, 0.55) }); // треск
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — у каждого вида свой голос; тело падает с глухим ударом

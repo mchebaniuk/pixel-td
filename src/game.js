@@ -305,7 +305,7 @@ export class Game {
       p.ang = Math.atan2(dy, dx);
       if (d <= step + 2) {
         p.alive = false;
-        if (p.target.alive) { this.damage(p.target, p.dmg, 'phys'); this.fx.burst(p.tx, p.ty, ['#ffffff', '#d8d2bc'], 3, 20, 0.25, 0); }
+        if (p.target.alive) { this.sfx('hit'); this.damage(p.target, p.dmg, 'phys'); this.fx.burst(p.tx, p.ty, ['#ffffff', '#d8d2bc'], 3, 20, 0.25, 0); }
       } else { p.x += dx / d * step; p.y += dy / d * step; }
     } else if (p.kind === 'rock') {
       p.t += dt;
