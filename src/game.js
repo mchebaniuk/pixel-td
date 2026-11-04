@@ -1,9 +1,14 @@
 import * as C from './config.js';
-import { drawAt, drawRig, size, SCALE, PIX } from './sprites.js';
+import { drawAt, drawRig, drawRigOutline, spritePixels, size, SCALE, PIX } from './sprites.js';
 import { unitRig, enemyRig } from './anim.js';
 import { PATH_LEN, posAt, SLOTS, renderBackground, drawTower, drawSlot, TOWER_TOP } from './map.js';
 
 const LIFT = 18; // высота полёта гаргулий
+// места на фоне (логические координаты): пламя факелов и ворота замка
+const TORCHES = [[20, 86], [390, 109], [438, 140]];
+const GATE = { x: 424, y: 97, w: 20, h: 20 };
+// обводка улучшенных защитников: 2 уровень — серебро, 3 — золото
+const LEVEL_GLOW = { 2: ['#a8d4ff', 0.45], 3: ['#ffd34a', 0.75] };
 import { FX, line, drawBoulder, cell, pxEllipse } from './fx.js';
 
 export class Game {
@@ -26,6 +31,9 @@ export class Game {
     this.phase = 'prep';          // prep | spawning | break | final | over
     this.spawnLeft = 0; this.spawnT = 0; this.breakT = 0;
     this.enemies = []; this.projectiles = []; this.meteors = []; this.corpses = [];
+    this.burns = []; this.shocks = []; this.cracks = []; this.gateHit = 0;
+    // светлячки над травой: медленно кружат и мерцают
+    this.flies = Array.from({ length: 18 }, () => ({ x: 20 + Math.random() * 380, y: 95 + Math.random() * 135, ph: Math.random() * 7, sp: 0.4 + Math.random() * 0.6 }));
     this.towers = SLOTS.map(([x, y], i) => ({ i, x, y, unit: null, level: 0, cd: 0, invested: 0, face: 1, anim: 0 }));
     this.fx = new FX();
     this.time = 0; this.playTime = 0; this.kills = 0;
@@ -133,8 +141,13 @@ export class Game {
     this.enemies = this.enemies.filter(e => e.alive);
     this.projectiles = this.projectiles.filter(p => p.alive !== false);
     this.meteors = this.meteors.filter(m => m.t < m.dur);
-    for (const c of this.corpses) c.t += dt;
-    this.corpses = this.corpses.filter(c => c.t < 0.7);
+    for (const c of this.corpses) { c.t += dt; if (c.t >= 0.25) this.dissolve(c); }
+    this.corpses = this.corpses.filter(c => c.t < 0.25);
+    this.updateBurns(dt);
+    for (const s of this.shocks) s.t += dt;
+    this.shocks = this.shocks.filter(s => s.t < 0.5);
+    for (const f of this.flies) { f.ph += dt * f.sp; f.x += Math.cos(f.ph * 0.7) * dt * 4; f.y += Math.sin(f.ph) * dt * 3; }
+    this.gateHit = Math.max(0, this.gateHit - dt);
     this.fx.update(dt);
 
     if (this.lives <= 0) this.finish(false);
@@ -180,8 +193,9 @@ export class Game {
     e.flash = Math.max(0, e.flash - dt);
     if (e.dotT > 0) { e.dotT -= dt; this.damage(e, e.dotDps * dt, 'magic', false); if (!e.alive) return; }
     if (e.def.regen && e.hp < e.max) e.hp = Math.min(e.max, e.hp + e.def.regen * dt);
+    if (e.def.slam) this.bossAbilities(e, dt);
     if (e.stunT > 0) { e.stunT -= dt; return; }
-    let k = 1;
+    let k = e.enraged ? e.def.rage.speed : 1;
     if (e.slowT > 0) { e.slowT -= dt; k *= e.slowK; }
     if (this.slowT > 0) k *= C.SPELLS.slow.slow;
     e.d += e.def.speed * k * dt;
@@ -194,10 +208,81 @@ export class Game {
       this.lives -= e.def.lives;
       if (e.def.boss) this.bossLeaked = true;
       this.sfx('leak');
+      this.hitGate(e.def.lives);
       this.fx.shake = Math.min(3, 1 + e.def.lives / 4);
       this.fx.burst(e.x, e.y - 20, ['#ff5a4a', '#ffffff'], 8, 30, 0.6);
       this.emit('change');
     }
+  }
+
+  // тролль-вождь: каждые несколько секунд бьёт кулаками в землю — ближние башни оглушены;
+  // при половине здоровья впадает в ярость и идёт быстрее
+  bossAbilities(e, dt) {
+    const sl = e.def.slam;
+    e.slamCd = (e.slamCd ?? sl.every * 0.6) - dt;
+    e.slamAnim = Math.max(0, (e.slamAnim || 0) - dt);
+    const near = this.towers.filter(t => t.unit && Math.hypot(t.x - e.x, t.y - e.y) <= sl.radius);
+    if (e.slamCd <= 0 && near.length && e.stunT <= 0) {
+      e.slamCd = sl.every; e.slamAnim = 0.45;
+      for (const t of near) t.stunT = sl.stun;
+      this.shocks.push({ x: e.x, y: e.y + 1, r: sl.radius, t: 0 });
+      this.fx.shake = Math.max(this.fx.shake, 2.5);
+      this.fx.burst(e.x, e.y, ['#8c7f68', '#a89a80', '#5e584e'], 22, 60, 0.6, 150);
+      this.sfx('slam');
+    }
+    if (!e.enraged && e.hp <= e.max * e.def.rage.at) {
+      e.enraged = true;
+      this.sfx('rage');
+      this.fx.burst(e.x, this.aimY(e), ['#ff5a3a', '#ffb03a', '#ffffff'], 26, 55, 0.7, 20);
+      this.emit('rage');
+    }
+  }
+
+  // прорыв к воротам: створки вздрагивают, появляется трещина, летит пыль
+  hitGate(lives) {
+    this.gateHit = 0.35;
+    for (let n = 0; n < Math.min(3, lives); n++) {
+      if (this.cracks.length >= 14) break;
+      let x = GATE.x + 3 + Math.random() * (GATE.w - 6), y = GATE.y + 4 + Math.random() * (GATE.h - 8);
+      const pts = [[x, y]];
+      for (let i = 0; i < 3; i++) { x += (Math.random() - 0.5) * 6; y += (Math.random() - 0.3) * 5; pts.push([x, y]); }
+      this.cracks.push(pts);
+    }
+    this.fx.burst(GATE.x + GATE.w / 2, GATE.y + GATE.h - 2, ['#8c7f68', '#a89a80', '#6b4528'], 14, 35, 0.6, 60);
+  }
+
+  // павший враг рассыпается на пиксели своей картинки, они осыпаются и тают
+  dissolve(c) {
+    const P = spritePixels(c.type), { w, h } = size(c.type);
+    const flip = (c.dir < 0) !== P.faceLeft;
+    const rot = (c.dir < 0 ? -1 : 1) * 1.45, cs = Math.cos(rot), sn = Math.sin(rot);
+    const y0 = c.flying ? c.y : c.y + 2;
+    const step = Math.max(1, Math.floor(P.list.length / (c.type === 'troll' ? 520 : 240)));
+    for (let i = Math.floor(Math.random() * step); i < P.list.length; i += step) {
+      const q = P.list[i];
+      const lx = ((flip ? P.gw - 1 - q.u : q.u) + 0.5) * PIX - w / 2, ly = -(h - (q.v + 0.5) * PIX);
+      this.fx.parts.push({ x: c.x + lx * cs - ly * sn, y: y0 + lx * sn + ly * cs,
+        vx: (Math.random() - 0.5) * 14, vy: -6 - Math.random() * 16, g: 18 + Math.random() * 20,
+        life: 0.45 + Math.random() * 0.5, max: 0.95, c: q.c, s: 0.6, fade: 1 });
+    }
+  }
+
+  // горящая земля от дракона 3 уровня
+  updateBurns(dt) {
+    for (const b of this.burns) {
+      b.t -= dt;
+      for (const e of this.enemies) {
+        if (!e.alive || e.def.flying) continue;
+        if (Math.hypot((e.x - b.x) / b.r, (e.y - b.y) / (b.r * 0.6)) <= 1) this.damage(e, b.dps * dt, 'fire', false);
+      }
+      b.acc = (b.acc || 0) + dt * 22;
+      for (; b.acc >= 1; b.acc--) {
+        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * b.r;
+        this.fx.parts.push({ x: b.x + Math.cos(a) * r, y: b.y + Math.sin(a) * r * 0.5, vx: 0, vy: -18 - Math.random() * 10,
+          life: 0.32, max: 0.32, fire: true, g: -10, s: 2, scale: 0.5 });
+      }
+    }
+    this.burns = this.burns.filter(b => b.t > 0);
   }
 
   damage(e, amt, type, show = true) {
@@ -212,6 +297,7 @@ export class Game {
     if (e.hp <= 0) {
       e.alive = false;
       this.gold += e.def.gold; this.kills++;
+      this.fx.gold(e.x - 2, this.aimY(e) - e.h * 0.55 - 5, e.def.gold);
       this.sfx('death', e.type);
       if (e.def.boss) this.sfx('boom');
       this.corpses.push({ type: e.type, x: e.x, y: e.y, dir: e.dir, flying: e.def.flying, t: 0 });
@@ -225,11 +311,11 @@ export class Game {
 
   aimY(e) { return e.y - e.h * 0.45 - (e.def.flying ? LIFT : 0); }
 
-  inRange(t, s) {
+  inRange(t, s, except = null) {
     const tx = t.x, ty = t.y - 8;
     let best = null;
     for (const e of this.enemies) {
-      if (!e.alive || (e.def.flying && !s.air)) continue;
+      if (!e.alive || e === except || (e.def.flying && !s.air)) continue;
       const ey = this.aimY(e);
       if (Math.hypot(e.x - tx, ey - ty) > s.range) continue;
       if (!best || e.d > best.d) best = e;
@@ -250,6 +336,7 @@ export class Game {
         this.fx.flame(t.mouthX + Math.cos(a) * off, t.mouthY + Math.sin(a) * off, Math.cos(a) * v, Math.sin(a) * v);
       }
     }
+    if (t.stunT > 0) { t.stunT -= dt; t.breath = 0; t.hasTarget = false; return; } // оглушён ударом тролля
     t.cd = Math.max(0, t.cd - dt * (this.hasteT > 0 ? C.SPELLS.haste.mult : 1));
     const target = this.inRange(t, s);
     t.hasTarget = !!target;
@@ -263,10 +350,15 @@ export class Game {
     if (t.unit === 'archer') {
       this.sfx('arrow');
       this.projectiles.push({ kind: 'arrow', x: ox, y: oy, target, tx: target.x, ty, speed: 220, dmg: s.dmg });
+      if (t.level >= 3) { // вторая стрела — в следующего врага, а если его нет, в того же
+        const second = this.inRange(t, s, target) || target;
+        this.projectiles.push({ kind: 'arrow', x: ox, y: oy - 2, target: second, tx: second.x, ty: this.aimY(second), speed: 210, dmg: s.dmg });
+      }
     } else if (t.unit === 'cyclops') {
       const lead = posAt(target.d + target.def.speed * 0.6);
       this.sfx('throw');
-      this.projectiles.push({ kind: 'rock', sx: ox, sy: oy - 4, gy0: t.y, spin: t.face, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg, splash: s.splash, stun: s.stun });
+      this.projectiles.push({ kind: 'rock', sx: ox, sy: oy - 4, gy0: t.y, spin: t.face, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg,
+        splash: s.splash * (t.level >= 3 ? s.perkSplash : 1), stun: s.stun * (t.level >= 3 ? s.perkStun : 1) });
     } else if (t.unit === 'lich') {
       this.sfx('zap');
       const ps = size('lich'); // луч света бьёт из сферы на навершии посоха
@@ -274,6 +366,19 @@ export class Game {
       this.damage(target, s.dmg, 'magic');
       target.dotT = s.dot; target.dotDps = s.dps;
       target.slowT = s.slowTime; target.slowK = s.slow;
+      if (t.level >= 3) { // луч перескакивает на ближайшего другого врага
+        let next = null, bd = s.perkChainRange;
+        for (const e of this.enemies) {
+          if (!e.alive || e === target) continue;
+          const d = Math.hypot(e.x - target.x, this.aimY(e) - ty);
+          if (d < bd) { bd = d; next = e; }
+        }
+        if (next) {
+          this.fx.beam(target.x, ty, next.x, this.aimY(next));
+          this.damage(next, s.dmg * s.perkChain, 'magic');
+          next.slowT = s.slowTime; next.slowK = s.slow;
+        }
+      }
     } else if (t.unit === 'dragon') {
       // пасть дракона — кончик морды (с учётом покачивания и рывка вперёд при выдохе);
       // пламя рождается чуть впереди неё, чтобы не закрывать голову
@@ -295,6 +400,11 @@ export class Game {
         this.fx.parts.push({ x: t.mouthX, y: t.mouthY, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.5, max: 0.5, fire: true, spark: true, g: -30 });
       }
       t.breathCone = s.cone;
+      t.burnCd = (t.burnCd || 0) - s.rate;
+      if (t.level >= 3 && !target.def.flying && t.burnCd <= 0) {
+        t.burnCd = s.perkBurn.every;
+        this.burns.push({ x: target.x, y: target.y, r: s.perkBurn.radius, dps: s.perkBurn.dps, t: s.perkBurn.time });
+      }
     }
   }
 
@@ -364,6 +474,7 @@ export class Game {
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     if (this.fx.shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * this.fx.shake * 2), Math.round((Math.random() - 0.5) * this.fx.shake * 2));
     ctx.drawImage(this.bg, 0, 0, C.W, C.H);
+    this.drawAmbientBack();
 
     // зона действия выбранной башни / предпросмотр
     const sel = this.towers[this.selected];
@@ -377,6 +488,7 @@ export class Game {
     list.sort((a, b) => a.y - b.y);
     for (const o of list) o.f();
     for (const e of this.enemies) if (e.def.flying) this.drawEnemy(e);
+    this.drawAmbientFront();
 
     for (const p of this.projectiles) this.drawProjectile(p);
     for (const m of this.meteors) this.drawMeteor(m);
@@ -385,6 +497,60 @@ export class Game {
     if (this.slowT > 0) { ctx.fillStyle = 'rgba(150,210,255,0.10)'; ctx.fillRect(0, 0, C.W, C.H); }
     if (this.targeting === 'meteor' && this.mouse) this.drawRange(this.mouse.x, this.mouse.y, C.SPELLS.meteor.radius, '#f08a2a');
     ctx.restore();
+  }
+
+  // окружение позади объектов: свет факелов, туман, выжженная земля, трещины ворот, ударные волны
+  drawAmbientBack() {
+    const ctx = this.ctx, t = this.time;
+    ctx.save();
+    // туман: медленные полупрозрачные полосы у подножия гор и в нижнем лесу
+    ctx.fillStyle = 'rgba(170,185,210,0.06)';
+    for (let i = 0; i < 5; i++) {
+      const y = i < 3 ? 70 + i * 5 : 222 + (i - 3) * 8;
+      const x = ((t * (3 + i) + i * 140) % 640) - 80;
+      pxEllipse(ctx, x, y, 70, 5); pxEllipse(ctx, x + 40, y + 2, 45, 3.5);
+    }
+    // факелы: дрожащий свет вокруг пламени
+    ctx.globalCompositeOperation = 'lighter';
+    TORCHES.forEach(([x, y], i) => {
+      const f = 0.75 + 0.25 * Math.sin(t * 11 + i * 2) * Math.sin(t * 7.3 + i);
+      ctx.fillStyle = `rgba(255,140,40,${0.07 * f})`; pxEllipse(ctx, x, y + 1, 13 * f, 10 * f);
+      ctx.fillStyle = `rgba(255,170,60,${0.12 * f})`; pxEllipse(ctx, x, y, 6 * f, 5 * f);
+    });
+    ctx.globalCompositeOperation = 'source-over';
+    // выжженная земля под огнём дракона
+    for (const b of this.burns) {
+      ctx.fillStyle = `rgba(40,18,8,${0.35 * Math.min(1, b.t)})`; pxEllipse(ctx, b.x, b.y, b.r, b.r * 0.5);
+    }
+    // ворота: при ударе на миг темнеют, трещины остаются
+    if (this.gateHit > 0) { ctx.fillStyle = `rgba(0,0,0,${this.gateHit * 0.6})`; cell(ctx, GATE.x, GATE.y, GATE.w, GATE.h); }
+    const jolt = this.gateHit > 0 ? Math.round(Math.sin(t * 60)) * PIX : 0;
+    for (const pts of this.cracks) for (let i = 1; i < pts.length; i++) {
+      line(ctx, pts[i - 1][0] + jolt, pts[i - 1][1], pts[i][0] + jolt, pts[i][1], '#1a1008', 1);
+    }
+    // ударная волна от кулаков тролля: расходящееся пиксельное кольцо
+    for (const s of this.shocks) {
+      const k = s.t / 0.5, r = s.r * (0.2 + 0.8 * k), n = Math.floor(r * 1.6);
+      ctx.fillStyle = `rgba(230,210,170,${0.8 * (1 - k)})`;
+      for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; cell(ctx, s.x + Math.cos(a) * r, s.y + Math.sin(a) * r * 0.55, 2 * PIX, PIX); }
+    }
+    ctx.restore();
+  }
+
+  // окружение поверх объектов: язычки пламени факелов и светлячки
+  drawAmbientFront() {
+    const ctx = this.ctx, t = this.time;
+    TORCHES.forEach(([x, y], i) => {
+      const h = 2.4 + Math.abs(Math.sin(t * 9 + i * 1.7)) * 2.4;
+      ctx.fillStyle = 'rgba(255,150,40,0.85)'; cell(ctx, x - 1.2 + Math.sin(t * 13 + i) * 0.6, y - h, 2.4, h);
+      ctx.fillStyle = 'rgba(255,236,150,0.9)'; cell(ctx, x - 0.6, y - h * 0.55, 1.2, h * 0.55);
+    });
+    for (const f of this.flies) {
+      const blink = Math.sin(f.ph * 3);
+      if (blink < 0.2) continue;
+      ctx.fillStyle = `rgba(214,255,120,${0.35 + 0.55 * blink})`; cell(ctx, f.x, f.y);
+      ctx.fillStyle = `rgba(214,255,120,${0.12 * blink})`; cell(ctx, f.x - PIX, f.y - PIX, 3 * PIX, 3 * PIX);
+    }
   }
 
   drawRange(x, y, r, color = '#fff3c0') {
@@ -409,7 +575,14 @@ export class Game {
     const windup = t.hasTarget ? Math.min(1, Math.max(0, 1 - t.cd / 0.5)) : 0;
     const rig = unitRig(t.unit, this.time, atk, windup, t.i * 1.7);
     const o = { ...rig.o, faceLeft: t.face < 0 };
+    const glow = LEVEL_GLOW[t.level];
+    if (glow) drawRigOutline(ctx, t.unit, t.x, top, o, rig.parts, glow[0], glow[1] * (0.75 + 0.25 * Math.sin(this.time * 3 + t.i)));
     const { w, h } = drawRig(ctx, t.unit, t.x, top, o, rig.parts);
+    if (t.stunT > 0) { // оглушён ударом тролля: звёздочки над головой
+      const a = this.time * 7;
+      ctx.fillStyle = '#f3c843';
+      for (let i = 0; i < 3; i++) cell(ctx, t.x + Math.cos(a + i * 2.1) * 6, top - h - 2 + Math.sin(a + i * 2.1) * 1.5, 2 * PIX, 2 * PIX);
+    }
     const ry = top + (o.dy || 0);
     if (t.unit === 'cyclops' && windup > 0 && !this.cyclopsHasBoulder) { // валун над головой перед броском
       const rx = t.x - t.face * 3 * windup, by = ry - h + 2 - 6 * windup;
@@ -437,9 +610,11 @@ export class Game {
     const lift = e.def.flying ? LIFT : 0;
     const o = { ...rig.o, faceLeft: e.dir < 0, white: e.flash > 0 };
     if (!moving) o.rot = 0.12;
+    if (e.slamAnim > 0) o.dy = (o.dy || 0) - Math.sin((1 - e.slamAnim / 0.45) * Math.PI) * 4; // подпрыгивает перед ударом
     const sw = e.h * 0.55;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     pxEllipse(ctx, e.x, e.y + 1, sw / 2, 2);
+    if (e.enraged) drawRigOutline(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts, '#ff3a2a', 0.55 + 0.3 * Math.sin(this.time * 9));
     const { w, h } = drawRig(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts);
     const top = e.y + 2 - lift - h + (o.dy || 0);
     if (e.slowT > 0 || this.slowT > 0) { ctx.fillStyle = 'rgba(127,214,255,0.9)'; cell(ctx, e.x - w / 2, e.y, w, PIX); }

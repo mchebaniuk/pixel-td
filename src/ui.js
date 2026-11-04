@@ -23,7 +23,7 @@ document.querySelectorAll('canvas[data-icon]').forEach(c => {
 const portrait = k => `<img src="${spriteURL(k)}" alt="">`;
 
 // ---------- состояние интерфейса ----------
-let game, dirty = true, pick = null;
+let game, dirty = true, pick = null, hoverUnit = null;
 
 // ---------- размер ----------
 function fit() {
@@ -47,8 +47,14 @@ function buildUnitButtons() {
   for (const k of C.UNIT_ORDER) {
     const u = C.UNITS[k];
     const b = document.createElement('button');
-    b.className = 'unit'; b.id = 'u-' + k; b.title = u.desc;
-    b.innerHTML = `<div class="pic">${portrait(k)}</div><span>${u.name}</span><span class="cost">${u.cost}</span>`;
+    const l1 = u.levels[0], keyN = C.UNIT_ORDER.indexOf(k) + 1;
+    b.className = 'unit'; b.id = 'u-' + k;
+    b.title = `${u.name} (клавиша ${keyN}): ${u.desc}\nУрон ${l1.dmg} · дальность ${l1.range} · выстрел раз в ${l1.rate} с\n` +
+      `${u.air ? 'Бьёт наземных и летающих' : 'Бьёт только наземных'}\nНа 3 уровне: ${u.perk}`;
+    b.innerHTML = `<span class="key">${keyN}</span><div class="pic">${portrait(k)}</div><span>${u.name}</span>` +
+      `<span class="air ${u.air ? 'yes' : ''}">${u.air ? 'земля + воздух' : 'только земля'}</span><span class="cost">${u.cost}</span>`;
+    b.onmouseenter = () => { hoverUnit = k; dirty = true; };
+    b.onmouseleave = () => { hoverUnit = null; dirty = true; };
     b.onclick = () => {
       const t = game.towers[game.selected];
       if (t && !t.unit) { game.build(t.i, k); pick = null; }
@@ -68,10 +74,9 @@ function refreshHud() {
   else $('wave').innerHTML = `Волна <b>${wi + 1}/${C.WAVES.length}</b> · ${C.ENEMIES[C.WAVES[wi].type].name}`;
   const next = $('next');
   next.disabled = !game.canCallWave() || game.phase === 'prep';
-  if (game.phase === 'break') {
-    const n = C.WAVES[wi + 1];
-    next.textContent = `${C.ENEMIES[n.type].name} через ${Math.ceil(game.breakT)} с ▸ +${C.EARLY_BONUS}`;
-  } else if (game.phase === 'final') next.textContent = 'Последняя волна';
+  refreshNextWave();
+  if (game.phase === 'break') next.textContent = `Вызвать сейчас ▸ +${C.EARLY_BONUS}`;
+  else if (game.phase === 'final') next.textContent = 'Последняя волна';
   else next.textContent = 'Волна идёт';
   $('speed').textContent = '×' + game.speed;
   $('speed').classList.toggle('on', game.speed > 1);
@@ -92,13 +97,40 @@ function refreshHud() {
   refreshTowerPanel();
 }
 
+// анонс следующей волны: кто идёт, сколько, чем опасен и когда
+const TRAITS = {
+  flying: ['летают — циклоп не достаёт', 'warn'],
+  armor: ['броня — магия и огонь сильнее', ''],
+  fast: ['быстрые', ''],
+  regen: ['лечится', ''],
+  boss: ['босс: бьёт по башням, звереет', 'boss'],
+};
+function refreshNextWave() {
+  const box = $('nextwave'), n = C.WAVES[game.waveIdx + 1];
+  if (!n || game.phase === 'over') { box.hidden = true; return; }
+  const e = C.ENEMIES[n.type], tags = [];
+  if (e.flying) tags.push(TRAITS.flying);
+  if (e.armor >= 0.3) tags.push(TRAITS.armor);
+  if (e.speed >= 35) tags.push(TRAITS.fast);
+  if (e.boss) tags.push(TRAITS.boss); else if (e.regen) tags.push(TRAITS.regen);
+  const when = game.phase === 'break' ? `<span class="time">${Math.ceil(game.breakT)} с</span>` : game.phase === 'prep' ? '' : '<span class="lbl">после этой</span>';
+  const html = `<span class="lbl">Далее:</span>${portrait(n.type)}<span>${e.name}${n.count > 1 ? ' ×' + n.count : ''}</span>` +
+    tags.map(([t, c]) => `<span class="tag ${c}">${t}</span>`).join('') + when;
+  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+  box.hidden = false;
+}
+
 function refreshTowerPanel() {
   const t = game.towers[game.selected];
   const up = $('upgrade'), sell = $('sell'), info = $('info');
   if (game.targeting === 'meteor') { info.innerHTML = 'Нажми на карту, куда упадёт <b>метеор</b>. Esc — отмена'; }
+  if (hoverUnit && game.targeting !== 'meteor') { // наведение на кнопку постройки — описание юнита
+    const u = C.UNITS[hoverUnit], l = u.levels[0];
+    info.innerHTML = `<b>${u.name}</b> · ${u.desc}<br>урон ${l.dmg} · дальн. ${l.range} · ${u.air ? 'земля + воздух' : 'только земля'}<br><i>3 ур.: ${u.perk}</i>`;
+  }
   if (!t || !t.unit) {
     up.disabled = sell.disabled = true; up.textContent = 'Улучшить'; sell.textContent = 'Продать';
-    if (game.targeting !== 'meteor') {
+    if (game.targeting !== 'meteor' && !hoverUnit) {
       info.innerHTML = t ? 'Башня пустая. Выбери защитника в панели <b>Постройка</b>'
         : pick ? `Нажми на пустую башню, чтобы поставить: <b>${C.UNITS[pick].name}</b>`
         : 'Нажми на башню, чтобы посадить защитника или улучшить его';
@@ -107,8 +139,9 @@ function refreshTowerPanel() {
   }
   const u = C.UNITS[t.unit], s = game.stats(t), nl = u.levels[t.level];
   const d = (a, b) => (b !== undefined && b !== a ? ` <i>→ ${b}</i>` : '');
-  if (game.targeting !== 'meteor') {
-    info.innerHTML = `<b>${u.name}</b> · ур. ${t.level}<br>урон ${s.dmg}${nl ? d(s.dmg, nl.dmg) : ''} · дальн. ${s.range}${nl ? d(s.range, nl.range) : ''}`;
+  if (game.targeting !== 'meteor' && !hoverUnit) {
+    const perk = t.level >= 3 ? `<br><b>★ ${u.perk}</b>` : t.level === 2 ? `<br>на 3 ур.: <i>${u.perk}</i>` : '';
+    info.innerHTML = `<b>${u.name}</b> · ур. ${t.level}${t.stunT > 0 ? ' · <b>оглушён!</b>' : ''}<br>урон ${s.dmg}${nl ? d(s.dmg, nl.dmg) : ''} · дальн. ${s.range}${nl ? d(s.range, nl.range) : ''}${perk}`;
   }
   if (nl) { up.textContent = `Улучшить ${nl.cost}`; up.disabled = game.gold < nl.cost; }
   else { up.textContent = 'Макс. уровень'; up.disabled = true; }
@@ -158,7 +191,10 @@ window.addEventListener('keydown', ev => {
   if (ev.key === ' ') { ev.preventDefault(); game.paused = !game.paused; dirty = true; }
   if (ev.key === 'm' || ev.key === 'M' || ev.key === 'ь' || ev.key === 'Ь') toggleSound();
   if (ev.key === 'Escape') { game.targeting = null; game.selected = -1; pick = null; dirty = true; }
-  for (const [k, sp] of Object.entries(C.SPELLS)) if (ev.key === sp.key && !$('sp-' + k).disabled) game.cast(k);
+  // клавиши по физическому месту (работают и в русской раскладке): Q/W/E — заклинания, 1–4 — защитники
+  for (const [k, sp] of Object.entries(C.SPELLS)) if (ev.code === 'Key' + sp.key.toUpperCase() && !$('sp-' + k).disabled) $('sp-' + k).click();
+  const n = /^Digit([1-9])$/.exec(ev.code);
+  if (n && C.UNIT_ORDER[n[1] - 1]) { const b = $('u-' + C.UNIT_ORDER[n[1] - 1]); if (!b.disabled) b.click(); }
 });
 
 // ---------- баннер волны ----------
@@ -166,7 +202,8 @@ function showBanner(d) {
   const old = stage.querySelector('#banner'); if (old) old.remove();
   const b = document.createElement('div');
   b.id = 'banner'; if (d.boss) b.className = 'boss';
-  b.innerHTML = `Волна ${d.idx + 1}: ${d.name}<small>${d.boss ? 'Босс идёт к замку!' : 'Отряд ×' + d.count + ' идёт колонной'}</small>`;
+  b.innerHTML = d.rage ? 'Тролль в ярости!<small>Он ускорился — добивай его</small>'
+    : `Волна ${d.idx + 1}: ${d.name}<small>${d.boss ? 'Босс идёт к замку!' : 'Отряд ×' + d.count + ' идёт колонной'}</small>`;
   stage.append(b);
   setTimeout(() => b.remove(), 2500);
 }
@@ -183,6 +220,8 @@ function showStart() {
       <li>Нажми на башню с защитником, чтобы улучшить или отпустить его за золото</li>
       <li>6 волн, в каждой один вид врагов. Последним идёт тролль-вождь</li>
       <li>Мана копится сама: Метеор, Мороз и Ускорение справа внизу</li>
+      <li>На 3 уровне каждый защитник получает особый навык</li>
+      <li>Клавиши: 1–4 — защитники, Q/W/E — заклинания, пробел — пауза, M — звук</li>
     </ul>
     <button class="primary" id="go">В бой</button>
   </div>`;
@@ -191,11 +230,14 @@ function showStart() {
 function showEnd(r) {
   game.selected = -1; pick = null;
   const mm = Math.floor(r.time / 60), ss = String(Math.floor(r.time % 60)).padStart(2, '0');
+  const stars = !r.win ? 0 : r.lives >= C.START_LIVES - 3 ? 3 : r.lives >= C.START_LIVES / 2 ? 2 : 1;
   overlay.hidden = false;
   overlay.innerHTML = `<div class="card frame">
     <h1 class="${r.win ? '' : 'lose'}">${r.win ? 'Замок выстоял!' : 'Замок пал'}</h1>
     <p class="lead">${r.win ? (r.bossLeaked ? 'Тролль проломил ворота, но стены устояли. Попробуй сразить его до ворот.' : 'Тролль-вождь повержен, орда отступает.') : 'Орда прорвалась через ворота. Попробуй другую расстановку.'}</p>
-    <ul><li>Время боя: ${mm}:${ss}</li><li>Врагов повержено: ${r.kills}</li><li>Жизней замка осталось: ${r.lives}</li></ul>
+    <div class="stars" aria-label="Оценка: ${stars} из 3">${[1, 2, 3].map(i => `<span class="${i <= stars ? 'on' : ''}">★</span>`).join('')}</div>
+    <ul><li>Время боя: ${mm}:${ss}</li><li>Врагов повержено: ${r.kills}</li><li>Жизней замка осталось: ${r.lives}</li>
+      <li>${stars === 3 ? 'Идеальная оборона!' : r.win ? 'Сохрани больше жизней замка, чтобы получить все звёзды' : 'Звёзды дают только за победу'}</li></ul>
     <button class="primary" id="again">Играть снова</button>
   </div>`;
   $('again').onclick = () => { game.reset(); showStart(); };
@@ -242,6 +284,7 @@ loadAssets().then(() => {
     if (ev === 'change') dirty = true;
     if (ev === 'wave') showBanner(data);
     if (ev === 'end') showEnd(data);
+    if (ev === 'rage') showBanner({ idx: -1, rage: true, boss: true });
   });
   window.__game = game;
   game.sfx = sfx;

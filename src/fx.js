@@ -27,8 +27,12 @@ export class FX {
     const cols = ['#fff3a0', '#f3c843', '#f08a2a', '#d0402e'];
     this.parts.push({ x, y, vx, vy, life: 0.4, max: 0.4, fire: true, cols, g: -14, s: 3 });
   }
-  number(x, y, val, color = '#fff') {
-    this.nums.push({ x, y, val: Math.round(val), life: 0.8, color });
+  number(x, y, val, color = '#fff', prefix = '-') {
+    this.nums.push({ x, y, val: Math.round(val), life: 0.8, color, prefix });
+  }
+  // монетки за убийство: золотое «+N» с монеткой, всплывает чуть дольше цифр урона
+  gold(x, y, val) {
+    this.nums.push({ x, y, val: Math.round(val), life: 1.1, color: '#f3c843', prefix: '+', coin: true });
   }
   // огонь рисуется на маленьком холсте (1 пиксель = PIX логических единиц) и растягивается без сглаживания,
   // поэтому выглядит как пиксель-арт: слои клубов от тёмного контура к светлому ядру
@@ -45,7 +49,7 @@ export class FX {
         const age = 1 - p.life / p.max;
         if (k < 0.5 && age > 0.55 + k) continue;      // яркое ядро только у свежих клубов
         if (k < 0.3 && age > 0.3) continue;
-        disc(c, p.x, p.y, (1.4 + age * 2.3) * k + extra * 0.8);
+        disc(c, p.x, p.y, ((1.4 + age * 2.3) * k + extra * 0.8) * (p.scale || 1));
       }
     }
     // искры
@@ -92,7 +96,14 @@ export class FX {
     this.drawFire(ctx);
     for (const n of this.nums) {
       ctx.globalAlpha = Math.min(1, n.life * 3);
-      drawNumber(ctx, '-' + n.val, n.x, n.y, n.color);
+      const txt = n.prefix + n.val;
+      drawNumber(ctx, txt, n.x, n.y, n.color);
+      if (n.coin) { // монетка справа от числа
+        const cx = n.x + txt.length * 4 * PIX + 1.2, cy = n.y + 0.6;
+        ctx.fillStyle = '#5a3a0c'; cell(ctx, cx - PIX, cy - PIX, 6 * PIX, 6 * PIX);
+        ctx.fillStyle = '#f3c843'; cell(ctx, cx, cy, 4 * PIX, 4 * PIX);
+        ctx.fillStyle = '#fff3a0'; cell(ctx, cx, cy, 2 * PIX, PIX);
+      }
       ctx.globalAlpha = 1;
     }
   }

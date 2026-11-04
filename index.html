@@ -46,6 +46,23 @@
   .pill.life { color: #ff8a7a; }
   #wave { font-family: var(--font); font-size: 15px; }
   #wave b { color: var(--gold); font-family: var(--pixel); font-size: 12px; font-weight: 400; }
+  /* анонс следующей волны */
+  #nextwave { font-family: var(--font); font-size: 13px; gap: 6px; padding: 3px 10px 3px 6px; }
+  #nextwave img { height: 24px; image-rendering: pixelated; }
+  #nextwave .lbl { color: var(--muted); }
+  #nextwave .tag { font-size: 11px; padding: 1px 6px; border-radius: 2px; background: #2b3247; color: var(--ink); white-space: nowrap; }
+  #nextwave .tag.warn { background: #5a2a1a; color: #ffc8a8; }
+  #nextwave .tag.boss { background: #6a1a14; color: #ffd0c0; }
+  #nextwave .time { font-family: var(--pixel); font-size: 11px; color: var(--gold); }
+  /* подсказка клавиши в углу кнопки */
+  .unit, .spell { position: relative; }
+  .key { position: absolute; top: 2px; left: 3px; font-family: var(--pixel); font-size: 7px; color: var(--muted); }
+  .unit .air { font-size: 10px; color: var(--muted); font-weight: 400; }
+  .unit .air.yes { color: #8ec0ff; }
+  /* звёзды на финальном экране */
+  .stars { display: flex; gap: 8px; font-size: 34px; line-height: 1; }
+  .stars span { color: #3a3f55; text-shadow: 2px 2px 0 var(--wood-dk); }
+  .stars span.on { color: var(--gold); }
   .spacer { flex: 1; }
 
   button {
@@ -118,6 +135,7 @@
     #bottom { grid-template-columns: 1fr 1fr; }
     #bottom .build { grid-column: 1 / -1; }
     .pill { font-size: 11px; padding: 4px 8px; }
+    #nextwave .tag:not(.boss):not(.warn) { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { #banner { animation-duration: 0.01s; animation-fill-mode: none; } }
 </style>
@@ -126,6 +144,7 @@
   <header id="top">
     <div class="pill gold frame" title="Золото"><canvas data-icon="coin" width="9" height="9"></canvas><span id="gold">0</span></div>
     <div class="pill frame" id="wave">Подготовка</div>
+    <div class="pill frame" id="nextwave" hidden></div>
     <div class="pill life frame" title="Жизни замка"><canvas data-icon="heart" width="9" height="9"></canvas><span id="lives">0</span></div>
     <div class="spacer"></div>
     <button id="next" class="primary">Волна сейчас</button>
@@ -152,9 +171,9 @@
     <section class="panel frame">
       <h2>Способности героя</h2>
       <div class="spells">
-        <button class="spell" id="sp-meteor" data-spell="meteor"><canvas data-icon="meteor" width="9" height="9"></canvas><span>Метеор</span><small>45</small></button>
-        <button class="spell" id="sp-slow" data-spell="slow"><canvas data-icon="frost" width="9" height="9"></canvas><span>Мороз</span><small>35</small></button>
-        <button class="spell" id="sp-haste" data-spell="haste"><canvas data-icon="bolt" width="9" height="9"></canvas><span>Ускорение</span><small>40</small></button>
+        <button class="spell" id="sp-meteor" data-spell="meteor"><span class="key">Q</span><canvas data-icon="meteor" width="9" height="9"></canvas><span>Метеор</span><small>45</small></button>
+        <button class="spell" id="sp-slow" data-spell="slow"><span class="key">W</span><canvas data-icon="frost" width="9" height="9"></canvas><span>Мороз</span><small>35</small></button>
+        <button class="spell" id="sp-haste" data-spell="haste"><span class="key">E</span><canvas data-icon="bolt" width="9" height="9"></canvas><span>Ускорение</span><small>40</small></button>
       </div>
       <div id="mana" title="Мана героя"><span>Мана</span><div class="track"><div class="fill" id="manaFill"></div></div><span id="manaNum">0</span></div>
     </section>

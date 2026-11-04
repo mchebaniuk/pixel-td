@@ -47,7 +47,7 @@ function pixelate(img, gw, gh) {
   const src = sx.getImageData(0, 0, img.width, img.height).data;
   const out = document.createElement('canvas');
   out.width = gw; out.height = gh;
-  const ox = out.getContext('2d');
+  const ox = out.getContext('2d', { willReadFrequently: true }); // пиксели потом читаются для тонировки и рассыпания
   const dst = ox.createImageData(gw, gh), d = dst.data;
   const kx = img.width / gw, ky = img.height / gh;
   for (let y = 0; y < gh; y++) {
@@ -102,7 +102,7 @@ export function setPixelDensity(pxPerUnit) {
 // Спрайт заранее увеличивается «квадратиками» в prescale раз, поэтому при выводе остаётся чётким.
 export function sprite(name, faceLeft = false, white = false) {
   const flip = faceLeft !== !!FACES_LEFT[name];
-  const key = `${name}|${flip}|${white}`;
+  const key = `${name}|${flip}|${white}`; // white: true — белый силуэт, строка — силуэт этого цвета
   if (cache[key]) return cache[key];
   const src = imgs[name], k = prescale;
   const c = document.createElement('canvas');
@@ -114,7 +114,7 @@ export function sprite(name, faceLeft = false, white = false) {
   if (white) {
     x.setTransform(1, 0, 0, 1, 0, 0);
     x.globalCompositeOperation = 'source-in';
-    x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height);
+    x.fillStyle = typeof white === 'string' ? white : '#ffffff'; x.fillRect(0, 0, c.width, c.height);
   }
   cache[key] = c;
   return c;
@@ -136,10 +136,28 @@ export function drawAt(ctx, name, x, y, o = {}) {
   return { w, h };
 }
 
+// светящаяся обводка: силуэт цвета color, сдвинутый на клетку во все стороны, под основным рисунком
+export function drawRigOutline(ctx, name, x, y, o, parts, color, alpha = 1) {
+  const oo = { ...o, tint: color, white: false, alpha: (o.alpha ?? 1) * alpha };
+  for (const [ox, oy] of [[-PIX, 0], [PIX, 0], [0, -PIX], [0, PIX]]) drawRig(ctx, name, x + ox, y + oy, oo, parts);
+}
+
+// пиксели картинки персонажа (для рассыпания при гибели): u, v — номер клетки, c — цвет
+const pixCache = {};
+export function spritePixels(name) {
+  if (pixCache[name]) return pixCache[name];
+  const c = imgs[name], d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, out = [];
+  for (let v = 0; v < c.height; v++) for (let u = 0; u < c.width; u++) {
+    const o = (v * c.width + u) * 4;
+    if (d[o + 3] > 0) out.push({ u, v, c: `rgb(${d[o]},${d[o + 1]},${d[o + 2]})` });
+  }
+  return (pixCache[name] = { list: out, gw: c.width, gh: c.height, faceLeft: !!FACES_LEFT[name] });
+}
+
 // рисует спрайт по частям (см. anim.js): каждая часть со своим сдвигом и растяжением
 export function drawRig(ctx, name, x, y, o, parts) {
   const flip = !!o.faceLeft !== !!FACES_LEFT[name];
-  const c = sprite(name, o.faceLeft, o.white);
+  const c = sprite(name, o.faceLeft, o.tint || o.white);
   const { w, h } = dims[name];
   ctx.save();
   ctx.translate(x + (o.dx || 0) * (o.faceLeft ? -1 : 1), y + (o.dy || 0));
