@@ -1,0 +1,86 @@
+// Весь баланс игры. Меняй цифры здесь, код трогать не нужно.
+
+export const W = 480;           // внутреннее разрешение (пиксели)
+export const H = 270;
+export const PLAY_TOP = 0;
+export const PLAY_BOTTOM = 270;
+
+export const START_GOLD = 260;
+export const START_LIVES = 20;
+export const SELL_RATE = 0.7;   // продажа возвращает 70% вложенного
+export const WAVE_BREAK = 5;    // секунд между волнами
+export const EARLY_BONUS = 15;  // золото за досрочный вызов волны
+
+export const MANA_MAX = 100;
+export const MANA_START = 40;
+export const MANA_REGEN = 3.5;  // в секунду
+
+// type урона: phys (режется бронёй), magic, fire
+// rate: секунд между атаками. range: радиус в пикселях.
+// levels: уровень 1 = базовый, 2 и 3 = апгрейды (cost = цена апгрейда)
+export const UNITS = {
+  archer: {
+    name: 'Лучник', desc: 'Быстрые стрелы по одной цели',
+    cost: 60, type: 'phys', proj: 'arrow', air: true,
+    levels: [
+      { dmg: 10, range: 70, rate: 0.6 },
+      { dmg: 14, range: 76, rate: 0.5,  cost: 55 },
+      { dmg: 21, range: 82, rate: 0.4,  cost: 95 },
+    ],
+  },
+  cyclops: {
+    name: 'Циклоп', desc: 'Валун по площади, оглушает. Не достаёт летающих',
+    cost: 90, type: 'phys', proj: 'rock', air: false, splash: 20, stun: 0.5,
+    levels: [
+      { dmg: 24, range: 62, rate: 1.9 },
+      { dmg: 38, range: 66, rate: 1.7, cost: 80 },
+      { dmg: 58, range: 70, rate: 1.5, cost: 130 },
+    ],
+  },
+  lich: {
+    name: 'Лич', desc: 'Тёмный луч: порча и замедление',
+    cost: 80, type: 'magic', proj: 'beam', air: true,
+    dot: 3, slow: 0.55, slowTime: 1.6,
+    levels: [
+      { dmg: 7,  dps: 5,  range: 66, rate: 0.9 },
+      { dmg: 11, dps: 8,  range: 70, rate: 0.8, cost: 70 },
+      { dmg: 16, dps: 13, range: 76, rate: 0.7, cost: 120 },
+    ],
+  },
+  dragon: {
+    name: 'Дракон', desc: 'Огненное дыхание конусом по толпе',
+    cost: 170, type: 'fire', proj: 'breath', air: true, cone: 0.55,
+    levels: [
+      { dmg: 5,  range: 56, rate: 0.14 },
+      { dmg: 8,  range: 60, rate: 0.13, cost: 140 },
+      { dmg: 12, range: 66, rate: 0.12, cost: 220 },
+    ],
+  },
+};
+export const UNIT_ORDER = ['archer', 'cyclops', 'lich', 'dragon'];
+
+// armor: доля физического урона, которую режет броня
+export const ENEMIES = {
+  skeleton: { name: 'Скелеты',          hp: 42,   speed: 26, gold: 6,  armor: 0,   lives: 1 },
+  goblin:   { name: 'Гоблины',          hp: 30,   speed: 34, gold: 5,  armor: 0,   lives: 1 },
+  wolf:     { name: 'Волчьи всадники',  hp: 70,   speed: 50, gold: 8,  armor: 0,   lives: 1 },
+  gargoyle: { name: 'Гаргульи',         hp: 85,   speed: 30, gold: 10,  armor: 0.2, lives: 1, flying: true },
+  orc:      { name: 'Орки-латники',     hp: 200,  speed: 22, gold: 15, armor: 0.5, lives: 2 },
+  troll:    { name: 'Тролль-вождь',     hp: 1150, speed: 17, gold: 150, armor: 0.25, lives: 12, regen: 8, boss: true },
+};
+
+// Каждая волна: один тип врагов, идут колонной
+export const WAVES = [
+  { type: 'skeleton', count: 10, gap: 1.0 },
+  { type: 'goblin',   count: 16, gap: 0.6 },
+  { type: 'wolf',     count: 10, gap: 0.8 },
+  { type: 'gargoyle', count: 10, gap: 1.0 },
+  { type: 'orc',      count: 8,  gap: 1.4 },
+  { type: 'troll',    count: 1,  gap: 1 },
+];
+
+export const SPELLS = {
+  meteor: { name: 'Метеор',    mana: 45, dmg: 120, radius: 30, key: '1', desc: 'Удар по области, клик по карте' },
+  slow:   { name: 'Мороз',     mana: 35, slow: 0.4, time: 4,    key: '2', desc: 'Все враги замедлены на 4 с' },
+  haste:  { name: 'Ускорение', mana: 40, mult: 1.6, time: 5,    key: '3', desc: 'Башни стреляют быстрее 5 с' },
+};
