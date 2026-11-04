@@ -1,7 +1,7 @@
 // Весь баланс игры. Меняй цифры здесь, код трогать не нужно.
 
 export const W = 480;           // внутреннее разрешение (пиксели)
-export const H = 289;
+export const H = 237;
 export const PLAY_TOP = 0;
 export const PLAY_BOTTOM = 270;
 
@@ -65,8 +65,8 @@ export const ENEMIES = {
   goblin:   { name: 'Гоблины',          hp: 30,   speed: 29, gold: 5,  armor: 0,   lives: 1 },
   wolf:     { name: 'Волчьи всадники',  hp: 70,   speed: 42, gold: 8,  armor: 0,   lives: 1 },
   gargoyle: { name: 'Гаргульи',         hp: 85,   speed: 26, gold: 10,  armor: 0.2, lives: 1, flying: true },
-  orc:      { name: 'Орки-латники',     hp: 190,  speed: 19, gold: 15, armor: 0.4, lives: 2 },
-  troll:    { name: 'Тролль-вождь',     hp: 1200, speed: 14, gold: 150, armor: 0.25, lives: 12, regen: 8, boss: true },
+  orc:      { name: 'Орки-латники',     hp: 220,  speed: 19, gold: 15, armor: 0.4, lives: 2 },
+  troll:    { name: 'Тролль-вождь',     hp: 1450, speed: 14, gold: 150, armor: 0.25, lives: 12, regen: 8, boss: true },
 };
 
 // Каждая волна: один тип врагов, идут колонной
