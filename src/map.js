@@ -1,5 +1,6 @@
 import { image, drawAt, SCALE } from './sprites.js';
 
+
 // Координаты сняты с картинки фона (1036×624) и переведены в логические 480×289
 const Z = SCALE;
 const fromArt = pts => pts.map(([x, y]) => [x / Z, y / Z]);
@@ -43,15 +44,15 @@ export function posAt(d) {
 
 // ---------- фон ----------
 export function renderBackground() {
-  const bg = image('bg'), f = image('foundation');
+  const bg = image('bg_hd'), f = image('foundation_hd');
   const c = document.createElement('canvas');
-  c.width = bg.width * 2; c.height = bg.height * 2;
+  c.width = bg.width; c.height = bg.height;
   const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bg, 0, 0, c.width, c.height);
+  ctx.drawImage(bg, 0, 0);
+  const k = bg.width / 480; // пикселей фона на логическую единицу
   for (const i of EXTRA_FOUNDATIONS) {
     const [x, y] = SLOTS[i];
-    ctx.drawImage(f, Math.round(x * Z - f.width), Math.round(y * Z - f.height), f.width * 2, f.height * 2);
+    ctx.drawImage(f, Math.round(x * k - f.width / 2), Math.round(y * k - f.height / 2));
   }
   return c;
 }

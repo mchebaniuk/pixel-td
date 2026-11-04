@@ -3,7 +3,7 @@
 
 export const SCALE = 1036 / 480;
 
-const NAMES = ['bg', 'foundation', 'tower', 'archer', 'cyclops', 'lich', 'dragon',
+const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'lich', 'dragon',
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
 
 // в какую сторону смотрит персонаж на исходной картинке
@@ -11,13 +11,15 @@ const FACES_LEFT = { troll: true };
 
 const imgs = {};
 const cache = {};
+let prescale = 1; // во сколько раз заранее увеличить спрайты (под плотность экрана)
 
 export function loadAssets() {
-  return Promise.all(NAMES.map(n => new Promise((resolve, reject) => {
+  return Promise.all(NAMES.map(file => new Promise((resolve, reject) => {
+    const n = file.replace(/\..*$/, '');
     const i = new Image();
     i.onload = () => { imgs[n] = i; resolve(); };
-    i.onerror = () => reject(new Error(`Не загрузилась картинка assets/${n}.png`));
-    i.src = `assets/${n}.png`;
+    i.onerror = () => reject(new Error(`Не загрузилась картинка assets/${file}`));
+    i.src = `assets/${file.includes('.') ? file : file + '.png'}`;
   })));
 }
 
@@ -26,17 +28,25 @@ export function image(name) { return imgs[name]; }
 // размер спрайта в логических единицах
 export function size(name) { return { w: imgs[name].width / SCALE, h: imgs[name].height / SCALE }; }
 
-// sprite('goblin', true) — смотрит влево; white — белый силуэт для вспышки при попадании
+// pxPerUnit — сколько экранных пикселей приходится на логическую единицу
+export function setPixelDensity(pxPerUnit) {
+  const k = Math.max(1, Math.ceil(pxPerUnit / SCALE));
+  if (k !== prescale) { prescale = k; for (const key in cache) delete cache[key]; }
+}
+
+// sprite('goblin', true) — смотрит влево; white — белый силуэт для вспышки при попадании.
+// Спрайт заранее увеличивается «квадратиками» в prescale раз, поэтому при выводе остаётся чётким.
 export function sprite(name, faceLeft = false, white = false) {
   const flip = faceLeft !== !!FACES_LEFT[name];
   const key = `${name}|${flip}|${white}`;
   if (cache[key]) return cache[key];
-  const src = imgs[name];
+  const src = imgs[name], k = prescale;
   const c = document.createElement('canvas');
-  c.width = src.width; c.height = src.height;
+  c.width = src.width * k; c.height = src.height * k;
   const x = c.getContext('2d');
+  x.imageSmoothingEnabled = false;
   if (flip) { x.translate(c.width, 0); x.scale(-1, 1); }
-  x.drawImage(src, 0, 0);
+  x.drawImage(src, 0, 0, c.width, c.height);
   if (white) {
     x.setTransform(1, 0, 0, 1, 0, 0);
     x.globalCompositeOperation = 'source-in';
@@ -46,11 +56,19 @@ export function sprite(name, faceLeft = false, white = false) {
   return c;
 }
 
-// рисует спрайт так, чтобы его нижний центр стоял в точке (x, y)
-export function drawAt(ctx, name, x, y, opts = {}) {
-  const c = sprite(name, opts.faceLeft, opts.white);
-  const w = c.width / SCALE, h = c.height / SCALE;
-  ctx.drawImage(c, Math.round((x - w / 2) * SCALE) / SCALE, Math.round((y - h) * SCALE) / SCALE, w, h);
+// рисует спрайт так, чтобы его нижний центр стоял в точке (x, y).
+// opts: faceLeft, white, rot (поворот вокруг ног), sx/sy (растяжение), alpha, dx/dy (сдвиг)
+export function drawAt(ctx, name, x, y, o = {}) {
+  const c = sprite(name, o.faceLeft, o.white);
+  const w = imgs[name].width / SCALE, h = imgs[name].height / SCALE;
+  ctx.save();
+  ctx.translate(x + (o.dx || 0), y + (o.dy || 0));
+  if (o.rot) ctx.rotate(o.rot);
+  if (o.sx || o.sy) ctx.scale(o.sx || 1, o.sy || 1);
+  if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(c, -w / 2, -h, w, h);
+  ctx.restore();
   return { w, h };
 }
 

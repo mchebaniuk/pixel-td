@@ -11,7 +11,7 @@ export class FX {
   }
   flame(x, y, vx, vy) {
     const cols = ['#fff3a0', '#f3c843', '#f08a2a', '#d0402e'];
-    this.parts.push({ x, y, vx, vy, life: 0.45, max: 0.45, fire: true, cols, g: -10, s: 2 });
+    this.parts.push({ x, y, vx, vy, life: 0.5, max: 0.5, fire: true, cols, g: -14, s: 3 });
   }
   number(x, y, val, color = '#fff') {
     this.nums.push({ x, y, val: Math.round(val), life: 0.8, color });
@@ -21,7 +21,7 @@ export class FX {
   update(dt) {
     for (const p of this.parts) {
       p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt;
-      if (p.fire) { p.vx *= 0.96; p.vy *= 0.96; }
+      if (p.fire) { const d = Math.pow(0.08, dt); p.vx *= d; p.vy *= d; }
     }
     this.parts = this.parts.filter(p => p.life > 0);
     for (const n of this.nums) { n.life -= dt; n.y -= 18 * dt; }
@@ -41,12 +41,22 @@ export class FX {
       ctx.fillStyle = '#ecd6ff'; ctx.fillRect(Math.round(b.x2) - 1, Math.round(b.y2) - 1, 3, 3);
     }
     for (const p of this.parts) {
-      let c = p.c;
-      if (p.fire) { const k = 1 - p.life / p.max; c = p.cols[Math.min(3, Math.floor(k * 4))]; }
-      ctx.fillStyle = c;
-      const s = p.fire ? (p.life / p.max > 0.5 ? 2 : 1) : p.s;
-      ctx.fillRect(Math.round(p.x), Math.round(p.y), s, s);
+      if (p.fire) continue;
+      ctx.fillStyle = p.c;
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), p.s, p.s);
     }
+    // пламя светится: рисуем с наложением «lighter»
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of this.parts) {
+      if (!p.fire) continue;
+      const k = 1 - p.life / p.max;
+      ctx.fillStyle = p.cols[Math.min(3, Math.floor(k * 4))];
+      ctx.globalAlpha = 0.85 * (1 - k * 0.6);
+      const s = 2.5 + k * 6;
+      ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+    }
+    ctx.restore();
     for (const n of this.nums) {
       ctx.globalAlpha = Math.min(1, n.life * 3);
       drawNumber(ctx, '-' + n.val, n.x, n.y, n.color);

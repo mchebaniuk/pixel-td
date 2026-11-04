@@ -1,6 +1,6 @@
 import * as C from './config.js';
 import { Game } from './game.js';
-import { loadAssets } from './sprites.js';
+import { loadAssets, setPixelDensity } from './sprites.js';
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), stage = $('stage'), overlay = $('overlay');
@@ -29,10 +29,14 @@ function fit() {
   const top = $('top').offsetHeight, bottom = $('bottom').offsetHeight;
   const availW = document.body.clientWidth - 32;
   const availH = window.innerHeight - top - bottom - 34;
-  const s = Math.max(0.3, Math.min(availW / cv.width, availH / cv.height));
-  cv.style.width = Math.floor(cv.width * s) + 'px';
-  cv.style.height = Math.floor(cv.height * s) + 'px';
-  $('app').style.maxWidth = Math.max(Math.floor(cv.width * s), 680) + 'px';
+  // холст рисуется в реальном разрешении экрана — без размытия при растяжении
+  const s = Math.max(0.3, Math.min(availW / C.W, availH / C.H));
+  const cssW = Math.floor(C.W * s), cssH = Math.floor(C.H * s);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  if (game) { game.pxScale = cv.width / C.W; setPixelDensity(game.pxScale); }
+  $('app').style.maxWidth = Math.max(cssW, 680) + 'px';
 }
 window.addEventListener('resize', fit);
 

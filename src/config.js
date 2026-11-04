@@ -51,9 +51,9 @@ export const UNITS = {
     name: 'Дракон', desc: 'Огненное дыхание конусом по толпе',
     cost: 170, type: 'fire', proj: 'breath', air: true, cone: 0.55,
     levels: [
-      { dmg: 5,  range: 70, rate: 0.14 },
-      { dmg: 8,  range: 75, rate: 0.13, cost: 140 },
-      { dmg: 12, range: 82, rate: 0.12, cost: 220 },
+      { dmg: 5,  range: 86, rate: 0.14 },
+      { dmg: 8,  range: 93, rate: 0.13, cost: 140 },
+      { dmg: 12, range: 100, rate: 0.12, cost: 220 },
     ],
   },
 };
@@ -66,7 +66,7 @@ export const ENEMIES = {
   wolf:     { name: 'Волчьи всадники',  hp: 70,   speed: 42, gold: 8,  armor: 0,   lives: 1 },
   gargoyle: { name: 'Гаргульи',         hp: 85,   speed: 26, gold: 10,  armor: 0.2, lives: 1, flying: true },
   orc:      { name: 'Орки-латники',     hp: 190,  speed: 19, gold: 15, armor: 0.4, lives: 2 },
-  troll:    { name: 'Тролль-вождь',     hp: 1050, speed: 14, gold: 150, armor: 0.25, lives: 12, regen: 8, boss: true },
+  troll:    { name: 'Тролль-вождь',     hp: 1200, speed: 14, gold: 150, armor: 0.25, lives: 12, regen: 8, boss: true },
 };
 
 // Каждая волна: один тип врагов, идут колонной

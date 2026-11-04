@@ -11,6 +11,7 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.emit = emit || (() => {});
     this.bg = renderBackground();
+    this.pxScale = SCALE; // экранных пикселей на логическую единицу, задаёт интерфейс
     this.reset();
   }
 
@@ -21,7 +22,7 @@ export class Game {
     this.waveIdx = -1;
     this.phase = 'prep';          // prep | spawning | break | final | over
     this.spawnLeft = 0; this.spawnT = 0; this.breakT = 0;
-    this.enemies = []; this.projectiles = []; this.meteors = [];
+    this.enemies = []; this.projectiles = []; this.meteors = []; this.corpses = [];
     this.towers = SLOTS.map(([x, y], i) => ({ i, x, y, unit: null, level: 0, cd: 0, invested: 0, face: 1, anim: 0 }));
     this.fx = new FX();
     this.time = 0; this.playTime = 0; this.kills = 0;
@@ -122,6 +123,8 @@ export class Game {
     this.enemies = this.enemies.filter(e => e.alive);
     this.projectiles = this.projectiles.filter(p => p.alive !== false);
     this.meteors = this.meteors.filter(m => m.t < m.dur);
+    for (const c of this.corpses) c.t += dt;
+    this.corpses = this.corpses.filter(c => c.t < 0.7);
     this.fx.update(dt);
 
     if (this.lives <= 0) this.finish(false);
@@ -197,6 +200,7 @@ export class Game {
     if (e.hp <= 0) {
       e.alive = false;
       this.gold += e.def.gold; this.kills++;
+      this.corpses.push({ type: e.type, x: e.x, y: e.y, dir: e.dir, flying: e.def.flying, t: 0 });
       const cols = { skeleton: ['#d8d2bc', '#9c9682'], goblin: ['#74b03e', '#3f7024'], wolf: ['#8a8a94', '#4f4f5a'],
         gargoyle: ['#8a8a94', '#5a5a66'], orc: ['#b4bcc6', '#3f7024'], troll: ['#74b03e', '#f3c843'] }[e.type];
       this.fx.burst(e.x, this.aimY(e), cols, e.def.boss ? 40 : 10, e.def.boss ? 70 : 40, 0.6);
@@ -222,13 +226,14 @@ export class Game {
   updateTower(t, dt) {
     const s = this.stats(t);
     t.anim = Math.max(0, t.anim - dt);
-    t.cd -= dt * (this.hasteT > 0 ? C.SPELLS.haste.mult : 1);
+    t.breath = Math.max(0, (t.breath || 0) - dt);
+    t.cd = Math.max(0, t.cd - dt * (this.hasteT > 0 ? C.SPELLS.haste.mult : 1));
     if (t.cd > 0) return;
     const target = this.inRange(t, s);
     if (!target) return;
     t.cd = s.rate;
     t.face = target.x < t.x ? -1 : 1;
-    t.anim = 0.15;
+    t.anim = 0.3;
     const ox = t.x + t.face * 6, oy = t.y - TOWER_TOP - 14;
     const ty = this.aimY(target);
     if (t.unit === 'archer') {
@@ -244,6 +249,7 @@ export class Game {
     } else if (t.unit === 'dragon') {
       const ax = target.x - ox, ay = ty - oy;
       const ang = Math.atan2(ay, ax);
+      Object.assign(t, { breath: 0.24, breathAng: ang, breathLen: s.range, mouthX: ox + t.face * 10, mouthY: oy - 2 });
       for (const e of this.enemies) {
         if (!e.alive) continue;
         const ey = this.aimY(e);
@@ -253,9 +259,9 @@ export class Game {
         if (da > Math.PI) da = Math.PI * 2 - da;
         if (da <= s.cone) this.damage(e, s.dmg, 'fire', Math.random() < 0.35);
       }
-      for (let i = 0; i < 5; i++) {
-        const a = ang + (Math.random() - 0.5) * s.cone * 1.6;
-        const v = 90 + Math.random() * 70;
+      for (let i = 0; i < 9; i++) {
+        const a = ang + (Math.random() - 0.5) * s.cone * 1.4;
+        const v = 190 + Math.random() * 130;
         this.fx.flame(ox + t.face * 10, oy - 2, Math.cos(a) * v, Math.sin(a) * v);
       }
     }
@@ -309,8 +315,8 @@ export class Game {
   draw() {
     const ctx = this.ctx;
     ctx.save();
-    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
-    ctx.imageSmoothingEnabled = false;
+    ctx.setTransform(this.pxScale, 0, 0, this.pxScale, 0, 0);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     if (this.fx.shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * this.fx.shake * 2), Math.round((Math.random() - 0.5) * this.fx.shake * 2));
     ctx.drawImage(this.bg, 0, 0, C.W, C.H);
 
@@ -321,11 +327,13 @@ export class Game {
     // объекты по глубине
     const list = [];
     for (const t of this.towers) list.push({ y: t.y, f: () => this.drawTowerUnit(t) });
+    for (const c of this.corpses) list.push({ y: c.y, f: () => this.drawCorpse(c) });
     for (const e of this.enemies) if (!e.def.flying) list.push({ y: e.y + 1, f: () => this.drawEnemy(e) });
     list.sort((a, b) => a.y - b.y);
     for (const o of list) o.f();
     for (const e of this.enemies) if (e.def.flying) this.drawEnemy(e);
 
+    for (const t of this.towers) if (t.breath > 0) this.drawFlame(t);
     for (const p of this.projectiles) this.drawProjectile(p);
     for (const m of this.meteors) this.drawMeteor(m);
     this.fx.draw(ctx);
@@ -352,10 +360,35 @@ export class Game {
     const hl = this.hover === t.i || this.selected === t.i;
     if (!t.unit) { drawSlot(ctx, t.x, t.y, hl, this.time + t.i); return; }
     drawTower(ctx, t.x, t.y, t.level, hl);
-    const bob = Math.sin(this.time * 2.5 + t.i) > 0.6 ? 0.5 : 0;
-    const kick = t.anim > 0 ? t.face * 1.5 : 0;
-    const top = t.y - TOWER_TOP + bob;
-    const { h } = drawAt(ctx, t.unit, t.x + kick, top, { faceLeft: t.face < 0 });
+    const top = t.y - TOWER_TOP;
+    const breath = Math.sin(this.time * 2.4 + t.i * 1.7);
+    const atk = t.anim / 0.3; // 1 → 0 сразу после выстрела
+    const o = { faceLeft: t.face < 0, sy: 1 + breath * 0.025, sx: 1 - breath * 0.012 };
+    const s = this.stats(t);
+    if (t.unit === 'archer') {
+      o.dx = -t.face * 2 * atk;                       // отдача лука
+    } else if (t.unit === 'cyclops') {
+      const windup = Math.min(1, Math.max(0, 1 - t.cd / 0.6));  // замах перед броском
+      o.rot = -t.face * 0.14 * windup + t.face * 0.2 * atk;
+    } else if (t.unit === 'lich') {
+      o.dy = -2 - Math.sin(this.time * 2 + t.i) * 1.5;  // левитирует
+    } else if (t.unit === 'dragon') {
+      o.dy = Math.sin(this.time * 4 + t.i) * 1.5;
+      o.sy = 1 + Math.sin(this.time * 9 + t.i) * 0.05; // взмахи крыльями
+      o.dx = t.face * 2 * Math.min(1, atk * 2);
+    }
+    const { h } = drawAt(ctx, t.unit, t.x, top, o);
+    if (t.unit === 'cyclops' && t.cd < 0.6) { // валун над головой
+      const k = Math.min(1, 1 - t.cd / 0.6), rx = t.x - t.face * 3 * k, ry = top - h + 2 - 6 * k;
+      ctx.fillStyle = '#2e2c30'; ctx.beginPath(); ctx.arc(rx, ry, 4.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8a8478'; ctx.beginPath(); ctx.arc(rx, ry, 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#b0aa9c'; ctx.fillRect(rx - 2, ry - 2, 2, 1.5);
+    }
+    if (t.unit === 'lich' && atk > 0) { // вспышка на навершии посоха
+      ctx.globalAlpha = atk; ctx.fillStyle = '#d6a4ff';
+      ctx.beginPath(); ctx.arc(t.x + t.face * 9, top - h + 6 + (o.dy || 0), 3 + atk * 3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     if (this.hasteT > 0 && Math.floor(this.time * 8) % 2) {
       ctx.fillStyle = '#7af4ff'; ctx.fillRect(t.x - 14, top - h * 0.6, 1, 3); ctx.fillRect(t.x + 14, top - h * 0.4, 1, 3);
     }
@@ -364,12 +397,18 @@ export class Game {
   drawEnemy(e) {
     const ctx = this.ctx;
     const moving = e.stunT <= 0;
-    const step = moving ? Math.abs(Math.sin(e.anim * (e.def.flying ? 6 : 9))) : 0;
-    const lift = e.def.flying ? LIFT + Math.sin(e.anim * 4) * 1.5 : step * 1.2;
+    const pace = { wolf: 13, troll: 5, gargoyle: 6, goblin: 11 }[e.type] || 9;
+    const ph = e.anim * pace;
+    const step = moving ? Math.abs(Math.sin(ph)) : 0;
+    const lift = e.def.flying ? LIFT + Math.sin(e.anim * 4) * 1.5 : step * (e.type === 'troll' ? 0.8 : 1.4);
+    const o = { faceLeft: e.dir < 0, white: e.flash > 0 };
+    if (e.def.flying) { const f = Math.sin(e.anim * 16); o.sy = 1 + f * 0.09; o.sx = 1 - f * 0.05; }
+    else if (moving) o.rot = Math.sin(ph) * (e.type === 'troll' ? 0.04 : 0.07);
+    else o.rot = 0.12 * (e.dir < 0 ? -1 : 1);
     const sw = e.h * 0.55;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + 1, sw / 2, 2, 0, 0, Math.PI * 2); ctx.fill();
-    const { w, h } = drawAt(ctx, e.type, e.x, e.y + 2 - lift, { faceLeft: e.dir < 0, white: e.flash > 0 });
+    const { w, h } = drawAt(ctx, e.type, e.x, e.y + 2 - lift, o);
     const top = e.y + 2 - lift - h;
     if (e.slowT > 0 || this.slowT > 0) { ctx.fillStyle = 'rgba(127,214,255,0.9)'; ctx.fillRect(e.x - w / 2, e.y, w, 1); }
     if (e.dotT > 0 && Math.random() < 0.15) this.fx.parts.push({ x: e.x + Math.random() * 8 - 4, y: top + h * 0.3, vx: 0, vy: -12, life: 0.4, max: 0.4, c: '#c58cff', g: 0, s: 1 });
@@ -380,6 +419,31 @@ export class Game {
       ctx.fillStyle = '#5a1414'; ctx.fillRect(bx, by, bw, 2);
       ctx.fillStyle = e.def.boss ? '#f08a2a' : '#5fd04a'; ctx.fillRect(bx, by, Math.max(0, bw * e.hp / e.max), 2);
     }
+  }
+
+  // огненная струя дракона: светящийся конус с мерцанием
+  drawFlame(t) {
+    const ctx = this.ctx, mx = t.mouthX, my = t.mouthY;
+    const L = t.breathLen * (0.88 + Math.random() * 0.12), a = t.breathAng;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, t.breath / 0.1);
+    for (const [len, half, inner] of [[L, 0.34, false], [L * 0.75, 0.16, true]]) {
+      const g = ctx.createRadialGradient(mx, my, 1, mx, my, len);
+      if (inner) { g.addColorStop(0, 'rgba(255,255,230,0.95)'); g.addColorStop(0.5, 'rgba(255,220,90,0.7)'); g.addColorStop(1, 'rgba(255,150,40,0)'); }
+      else { g.addColorStop(0, 'rgba(255,230,120,0.9)'); g.addColorStop(0.35, 'rgba(255,150,40,0.75)'); g.addColorStop(0.75, 'rgba(220,70,25,0.45)'); g.addColorStop(1, 'rgba(160,30,15,0)'); }
+      const j = (Math.random() - 0.5) * 0.06;
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.arc(mx, my, len, a - half + j, a + half + j); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // павший враг заваливается набок и тает
+  drawCorpse(c) {
+    const k = Math.min(1, c.t / 0.25), fade = 1 - Math.max(0, (c.t - 0.25) / 0.45);
+    const y = c.flying ? c.y - LIFT * (1 - k) : c.y + 2;
+    drawAt(this.ctx, c.type, c.x, y, { faceLeft: c.dir < 0, rot: (c.dir < 0 ? -1 : 1) * 1.45 * k, alpha: Math.max(0, fade) });
   }
 
   drawProjectile(p) {
