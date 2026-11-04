@@ -47,33 +47,49 @@ export function enemyRig(type, phase, moving) {
   }
 }
 
+const ease = k => k * k * (3 - 2 * k); // плавный разгон и торможение
+
 // защитники на башнях: t — время, atk — 1→0 сразу после выстрела, windup — 0→1 перед выстрелом
 export function unitRig(unit, t, atk, windup, seed) {
   const breath = Math.sin(t * 2.2 + seed);
   switch (unit) {
-    case 'archer':
-      return { o: { dx: -0.8 * windup + 1.6 * atk }, parts: [
-        { r: [0, 0.58, 1, 1] },
-        { r: [0, 0, 1, 0.63], dy: breath * 0.35 },
+    case 'archer': { // натягивает тетиву, отклоняясь назад, после выстрела — отдача и возврат
+      const pull = ease(windup), kick = atk * atk;
+      return { o: { dx: -0.9 * pull + 1.4 * kick, rot: -0.05 * pull + 0.04 * kick }, parts: [
+        { r: [0, 0.58, 1, 1], dx: 0.5 * pull - 0.6 * kick },  // ноги упираются
+        { r: [0, 0, 1, 0.63], dy: breath * 0.35 - 0.4 * kick },
       ] };
-    case 'cyclops':
-      return { o: { rot: -0.12 * windup + 0.18 * atk }, parts: [
-        { r: [0, 0.6, 1, 1] },
-        { r: [0, 0, 1, 0.65], dy: breath * 0.45 },
+    }
+    case 'cyclops': { // поднимает валун над головой и швыряет его вперёд всем корпусом
+      const up = ease(windup), hit = atk;
+      // руки: замах вверх через перёд; на броске проходят вперёд и вниз
+      const arm = -2.7 * Math.max(up, hit * hit * 0.9);
+      return { o: { rot: -0.12 * up + 0.22 * hit, dx: -0.8 * up + 2 * hit }, parts: [
+        { r: [0.8, 0.18, 1, 0.62], rot: arm * 1.08, at: [0.84, 0.22] },             // дальняя рука
+        { r: [0, 0.62, 1, 1], sy: 1 - 0.06 * up, pivot: 'top' },                      // ноги приседают на замахе
+        { r: [0.2, 0, 0.8, 0.64], dy: breath * 0.45 + 1.2 * up - 0.8 * hit },         // голова и торс
+        { r: [0, 0.18, 0.2, 0.62], rot: arm, at: [0.16, 0.22], dy: 1.2 * up - 0.8 * hit }, // ближняя рука
       ] };
-    case 'lich': // жрец стоит на площадке и спокойно дышит
+    }
+    case 'lich': { // жрец поднимает посох перед лучом и вскидывает его при выстреле; подол колышется
+      const lift = 1.2 * ease(windup) + 1.6 * atk;
       return { o: {}, parts: [
-        { r: [0, 0.6, 1, 1] },
-        { r: [0, 0, 1, 0.62], dy: breath * 0.3 },
+        { r: [0, 0.74, 0.72, 1], dx: Math.sin(t * 2.2 + seed) * 0.35 },            // подол мантии
+        { r: [0, 0, 0.72, 0.75], dy: breath * 0.3 },                                // тело
+        { r: [0.72, 0, 1, 1], dy: -lift + breath * 0.2 },                           // рука с посохом
       ] };
-    case 'dragon': {
-      const flap = 0.5 + 0.5 * Math.sin(t * 5 + seed);
-      return { o: { dy: Math.sin(t * 2.5 + seed) * 0.8, dx: 1.5 * atk }, parts: [
-        { r: [0, 0, 0.47, 0.6], sy: 1 - flap * 0.22, pivot: 'bottom' },   // левое крыло
-        { r: [0.83, 0, 1, 0.72], sy: 1 - flap * 0.22, pivot: 'bottom' },  // правое крыло
-        { r: [0, 0.58, 0.47, 1] },
+    }
+    case 'dragon': { // крылья машут; при выдохе голова выбрасывается вперёд, крылья распахиваются; хвост качается
+      const fire = Math.min(1, atk * 1.6);
+      const flap = (0.5 + 0.5 * Math.sin(t * 5 + seed)) * (1 - fire) + fire * 0.05;
+      const tail = Math.sin(t * 2 + seed) * 0.8;
+      return { o: { dy: Math.sin(t * 2.5 + seed) * 0.8, dx: 0.8 * fire }, parts: [
+        { r: [0, 0, 0.47, 0.6], sy: 1 - flap * 0.22 + fire * 0.06, pivot: 'bottom' },   // левое крыло
+        { r: [0.83, 0, 1, 0.72], sy: 1 - flap * 0.22 + fire * 0.06, pivot: 'bottom' },  // правое крыло
+        { r: [0, 0.58, 0.47, 1], dx: tail },                                              // хвост
         { r: [0.83, 0.7, 1, 1] },
-        { r: [0.45, 0, 0.85, 1] },                                         // тело и голова
+        { r: [0.45, 0.4, 0.85, 1] },                                                      // тело
+        { r: [0.45, 0, 0.85, 0.42], dx: 1.2 * fire, dy: 0.6 * fire },                     // шея и голова
       ] };
     }
     default:

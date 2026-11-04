@@ -297,7 +297,6 @@ export class Game {
     if (e.hp <= 0) {
       e.alive = false;
       this.gold += e.def.gold; this.kills++;
-      this.fx.gold(e.x - 2, this.aimY(e) - e.h * 0.55 - 5, e.def.gold);
       this.sfx('death', e.type);
       if (e.def.boss) this.sfx('boom');
       this.corpses.push({ type: e.type, x: e.x, y: e.y, dir: e.dir, flying: e.def.flying, t: 0 });
@@ -357,7 +356,8 @@ export class Game {
     } else if (t.unit === 'cyclops') {
       const lead = posAt(target.d + target.def.speed * 0.6);
       this.sfx('throw');
-      this.projectiles.push({ kind: 'rock', sx: ox, sy: oy - 4, gy0: t.y, spin: t.face, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg,
+      const cs = size('cyclops'); // валун срывается с рук над головой
+      this.projectiles.push({ kind: 'rock', sx: t.x - t.face, sy: t.y - TOWER_TOP - cs.h - 3, gy0: t.y, spin: t.face, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg,
         splash: s.splash * (t.level >= 3 ? s.perkSplash : 1), stun: s.stun * (t.level >= 3 ? s.perkStun : 1) });
     } else if (t.unit === 'lich') {
       this.sfx('zap');
@@ -585,7 +585,8 @@ export class Game {
     }
     const ry = top + (o.dy || 0);
     if (t.unit === 'cyclops' && windup > 0 && !this.cyclopsHasBoulder) { // валун над головой перед броском
-      const rx = t.x - t.face * 3 * windup, by = ry - h + 2 - 6 * windup;
+      const k = windup * windup * (3 - 2 * windup); // поднимается вместе с руками: от груди до места над головой
+      const rx = t.x + t.face * (3 - 4 * k), by = ry - h * 0.45 - (h * 0.55 + 3) * k;
       drawBoulder(ctx, rx, by, 0);
     }
     if (t.unit === 'lich') { // свечение солнечной сферы на посохе жреца

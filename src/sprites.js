@@ -174,6 +174,14 @@ export function drawRig(ctx, name, x, y, o, parts) {
     // pivotX — край, за который часть «прикреплена» (для крыла — плечо); при отражении край меняется
     const anchor = flip ? { left: 'right', right: 'left' }[p.pivotX] : p.pivotX;
     const left = -w / 2 + x0 * w + (anchor === 'right' ? pw * (1 - sx) : 0);
+    if (p.rot) { // часть поворачивается вокруг точки крепления p.at (доли картинки, как r), например рука — вокруг плеча
+      const ax = -w / 2 + (flip ? 1 - p.at[0] : p.at[0]) * w + dx, ay = -h + p.at[1] * h + (p.dy || 0);
+      ctx.save(); ctx.translate(ax, ay); ctx.rotate(o.faceLeft ? -p.rot : p.rot);
+      ctx.drawImage(c, x0 * c.width, y0 * c.height, (x1 - x0) * c.width, (y1 - y0) * c.height,
+        left + dx - ax, top + (p.dy || 0) - ay, pw * sx, ph * sy);
+      ctx.restore();
+      continue;
+    }
     ctx.drawImage(c, x0 * c.width, y0 * c.height, (x1 - x0) * c.width, (y1 - y0) * c.height,
       left + dx, top + (p.dy || 0), pw * sx, ph * sy);
   }
