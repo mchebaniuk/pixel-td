@@ -340,7 +340,6 @@ export class Game {
     const s = this.stats(t);
     t.anim = Math.max(0, t.anim - dt);
     t.breath = Math.max(0, (t.breath || 0) - dt);
-    turnTowards(t, t.face, dt);
     this.flame(t.i, t.unit === 'dragon' && t.breath > 0); // звук огня ровно столько, сколько видна струя
     if (t.unit === 'dragon' && t.breath > 0) { // огонь льётся непрерывно, пока дракон дышит
       t.fireAcc = (t.fireAcc || 0) + dt * 150; // много коротких языков сливаются в сплошную струю
@@ -582,7 +581,7 @@ export class Game {
   // тетива лучника рисуется отдельно: натягивается к лицу перед выстрелом, после выстрела распрямляется и дрожит.
   // Концы лука и точка натяжения — в долях картинки (персонаж смотрит вправо)
   drawBowstring(t, top, o, partDy, windup, atk) {
-    const ctx = this.ctx, { w, h } = size('archer'), f = t.shown ?? t.face;
+    const ctx = this.ctx, { w, h } = size('archer'), f = t.face;
     const pull = windup * windup * (3 - 2 * windup);
     const P = (fx, fy) => [-w / 2 + fx * w, -h + fy * h + partDy];
     const tipT = P(0.667, 0.03), tipB = P(0.66, 0.72);
@@ -619,7 +618,7 @@ export class Game {
     const atk = t.anim / 0.3;
     const windup = t.hasTarget ? Math.min(1, Math.max(0, 1 - t.cd / 0.5)) : 0;
     const rig = unitRig(t.unit, this.time, atk, windup, t.i * 1.7);
-    const o = { ...rig.o, faceLeft: (t.shown ?? t.face) < 0, sx: turnScale(t) };
+    const o = { ...rig.o, faceLeft: t.face < 0 }; // защитники на башнях разворачиваются мгновенно
     if (t.unit === 'archer') this.drawBowstring(t, top, o, rig.parts[1].dy || 0, windup, atk);
     const glow = LEVEL_GLOW[t.level];
     if (glow) drawRigOutline(ctx, t.unit, t.x, top, o, rig.parts, glow[0], glow[1] * (0.75 + 0.25 * Math.sin(this.time * 3 + t.i)));
