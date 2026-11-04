@@ -245,13 +245,11 @@ const SFX = {
     noise(0.42, { filter: 'highpass', freq: 5500, vol: 0.1, attack: 0.04 });
     noise(0.12, { filter: 'highpass', freq: 3500, vol: 0.07, when: 0.3 }); // пшш — ожог на цели
   },
-  // дракон выдыхает пламя: вдох, затем ревущий поток огня с треском
+  // дракон выпускает струю пламени: мягкое ровное «фшшух», как из горелки — без треска и без рыка
   fire() {
-    noise(0.12, { freq: 700, to: 1600, q: 1.2, vol: 0.08, attack: 0.08 }); // короткий вдох
-    noise(0.75, { filter: 'lowpass', freq: 2200, to: 700, vol: 0.32, attack: 0.1, when: 0.08 });  // рёв потока
-    noise(0.7, { freq: 420, q: 0.8, vol: 0.22, attack: 0.12, when: 0.08 });                         // глубина огня
-    noise(0.6, { filter: 'highpass', freq: 3500, vol: 0.05, attack: 0.1, when: 0.1 });             // шипение языков
-    for (let i = 0; i < 6; i++) noise(0.015, { filter: 'highpass', freq: 2000, vol: 0.1, when: 0.12 + rnd(0, 0.55) }); // треск
+    noise(0.7, { filter: 'lowpass', freq: 2800, to: 1200, vol: 0.2, attack: 0.07 });
+    noise(0.65, { freq: 1100, to: 700, q: 0.6, vol: 0.12, attack: 0.08 });
+    noise(0.55, { filter: 'highpass', freq: 4500, vol: 0.035, attack: 0.1 });
   },
   // падение врага: глухой удар и звяканье снаряжения
   // гибель врага — у каждого вида свой голос; тело падает с глухим ударом
