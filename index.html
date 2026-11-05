@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Стражи Рубежа</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,8 +40,10 @@
   }
 
   /* верхняя панель */
-  #top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #top { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+  body.wrap #top { flex-wrap: wrap; }
   #top button { height: 34px; }
+  #top button, #top .pill { white-space: nowrap; flex: none; }
   .pill { display: flex; align-items: center; gap: 7px; height: 34px; box-sizing: border-box; padding: 0 12px; font-family: var(--pixel); font-size: 13px; font-variant-numeric: tabular-nums;
     background: linear-gradient(180deg, #232a3e, #181d2b); }
   .pill canvas { width: 18px; height: 18px; image-rendering: pixelated; }
@@ -196,7 +199,7 @@
   }
 
   /* экраны старта и финала */
-  #overlay { position: absolute; inset: 0; z-index: 6; line-height: 1.35; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(8,9,14,0.6); }
+  #overlay { position: fixed; inset: 0; z-index: 6; line-height: 1.35; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(8,9,14,0.6); }
   .card { padding: 16px 20px; max-width: 480px; width: 100%; display: flex; flex-direction: column; gap: 10px; max-height: 100%; overflow: auto; box-sizing: border-box; }
   .card h1 { margin: 0; font-family: var(--pixel); line-height: 1.3; font-size: clamp(20px, 3vw, 30px); text-align: center; color: #ffd65a; text-wrap: balance;
     text-shadow: 0 4px 0 #6a3e0c, 2px 2px 0 #2a170a, -2px -2px 0 #2a170a, 2px -2px 0 #2a170a, -2px 2px 0 #2a170a; }
@@ -207,13 +210,21 @@
   .card .lead { margin: 0; color: var(--muted); font-size: 14px; }
   .card .roster { display: flex; gap: 12px; align-items: flex-end; }
   .card .roster img { height: 48px; image-rendering: pixelated; }
+  .card > button { position: sticky; bottom: 0; box-shadow: inset 0 2px 0 #c08a2a, inset 0 -2px 0 #5a3a0c, 0 -6px 12px 6px var(--panel); }
   .card button { align-self: center; font-size: 20px; padding: 8px 34px; min-height: 44px; letter-spacing: 0.03em; }
 
+  /* верхняя панель ужимается ступенями, пока не влезет в одну строку (fitTop в ui.js) */
+  body.compact #top { gap: 6px; }
+  body.compact .pill { padding: 0 8px; font-size: 12px; }
+  body.compact #nextwave .nw-tag, body.compact #nextwave .nw-lbl { display: none; }
+  body.compact #wave .wv-name { display: none; }
+  body.tight #top { gap: 4px; }
+  body.tight .pill { padding: 0 6px; gap: 5px; font-size: 11px; }
+  body.tight #top button { padding: 4px 8px; }
+  body.tight #wave .wv-lbl, body.tight #nextwave .nw-text, body.tight #nextwave .nw-wait { display: none; }
+  body.tight #next:disabled { display: none; }
+  #sound.muted { text-decoration: line-through; }
   @media (max-width: 1150px) {
-    #top { gap: 6px; }
-    .pill { padding: 0 8px; font-size: 12px; }
-    #nextwave .nw-tag, #nextwave .nw-lbl { display: none; }
-    #wave .wv-name { display: none; }
     .slots, .spells { gap: 6px; }
     .unit { flex: 1 1 0; min-width: 0; width: auto; max-width: 100px; }
     .unit .air { font-size: 9px; padding: 2px 4px; }
@@ -225,11 +236,84 @@
     .unit { width: 84px; } .unit .pic { width: 56px; height: 52px; } .unit img { height: 46px; }
     .spell { width: 64px; }
     #bottom .build { grid-column: 1 / -1; }
-    .pill { font-size: 11px; padding: 4px 8px; }
     #nextwave .nw-tag:not(.boss):not(.air) { display: none; }
   }
-  @media (prefers-reduced-motion: reduce) { #banner { animation-duration: 0.01s; animation-fill-mode: none; } }
+  /* низкий горизонтальный экран (телефон): панели колонкой справа от поля, поле крупнее */
+  @media (orientation: landscape) and (max-height: 540px) {
+    body { padding-block: 6px; }
+    #app { --side: clamp(200px, 28vw, 250px); display: grid; grid-template-columns: minmax(0, 1fr) var(--side); grid-template-rows: auto minmax(0, 1fr);
+      gap: 6px 8px; height: 100%; max-width: none !important; }
+    #top { grid-column: 1 / -1; }
+    #top button, .pill { height: 30px; min-height: 30px; }
+    #stage { align-self: start; justify-self: center; }
+    #bottom { display: flex; flex-direction: column; gap: 5px; margin-top: 0; min-height: 0; overflow-y: auto; }
+    .panel { padding: 5px 6px; gap: 5px; }
+    .panel h2, .key { display: none; }
+    .slots { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .unit { display: grid; grid-template-columns: 30px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 6px; row-gap: 2px; align-items: center; justify-items: start;
+      width: auto; max-width: none; padding: 3px 5px; }
+    .unit .pic { grid-row: 1 / 3; width: 30px; height: 30px; }
+    .unit img { height: 28px; max-width: 28px; }
+    .unit .name { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .unit .cost { font-size: 9px; }
+    .unit .air { display: none; }
+    .unit:hover:not(:disabled) { transform: none; }
+    #info { min-height: 0; font-size: 11px; gap: 6px; }
+    #info .tpic, #info .perk { display: none; }
+    #info .tname { font-size: 12px; }
+    #info .lvl { font-size: 11px; }
+    #info .stats { gap: 0 8px; }
+    .row button { min-height: 30px; font-size: 10.5px; padding: 2px 3px; white-space: nowrap; overflow: hidden; }
+    #banner { font-size: 13px; padding: 6px 26px; top: 6%; }
+    #banner small { font-size: 11px; margin-top: 4px; }
+    #banner::before { left: 8px; } #banner::after { right: 8px; }
+    .spells { gap: 4px; }
+    .spell { flex: 1 1 0; width: auto; max-width: none; height: 40px; padding: 2px; }
+    .spell canvas { width: 22px; height: 22px; margin: 0; }
+    .spell span:not(.key) { display: none; }
+    #mana { font-size: 11px; gap: 6px; }
+  }
+  /* совсем низкий экран (iPhone SE лёжа): у выбранной башни только имя, уровень и кнопки */
+  @media (orientation: landscape) and (max-height: 330px) { #info .stats { display: none; } }
+  /* стартовый экран на низком экране — без лишнего */
+  @media (max-height: 540px) {
+    #overlay { padding: 6px; }
+    .card { padding: 10px 14px; gap: 6px; max-width: 560px; }
+    .card h1 { font-size: 18px; }
+    .card .lead, .card ul { font-size: 12px; }
+    .card ul { gap: 2px; }
+    .card .roster img { height: 32px; }
+    .card .stars { font-size: 40px; }
+    .card button { font-size: 16px; min-height: 40px; padding: 6px 28px; }
+  }
+  @media (hover: none) { .card li.keys { display: none; } }
+
+  /* вертикальный телефон: просим повернуть */
+  #rotate { display: none; }
+  @media (orientation: portrait) and (max-width: 700px) {
+    body { overflow-y: auto; align-items: flex-start; }
+    #info .tpic, #info .perk { display: none; }
+    .row button { font-size: 12px; padding: 4px 6px; }
+    .panel h2 { font-size: 11px; padding: 3px 8px; letter-spacing: 0.03em; }
+  }
+  @media (orientation: portrait) and (max-width: 700px) {
+    body:not(.portrait-ok) #rotate { display: flex; position: fixed; inset: 0; z-index: 20; align-items: center; justify-content: center; padding: 16px; background: rgba(8,9,14,0.94); }
+  }
+  #rotate .card { align-items: center; text-align: center; max-width: 340px; }
+  #rotate h1 { font-size: 18px; }
+  .phone-ico { width: 34px; height: 58px; margin: 6px 0 2px; border: 4px solid var(--gold); border-radius: 6px; box-shadow: 0 0 0 2px var(--wood-dk), inset 0 -8px 0 -4px var(--gold);
+    animation: turn 2.4s ease-in-out infinite; }
+  @keyframes turn { 0%, 25% { transform: rotate(0); } 50%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+
+  @media (prefers-reduced-motion: reduce) { .phone-ico { animation: none; transform: rotate(-90deg); } #banner { animation-duration: 0.01s; animation-fill-mode: none; } }
 </style>
+
+<div id="rotate"><div class="card frame">
+  <div class="phone-ico" aria-hidden="true"></div>
+  <h1>Поверни телефон</h1>
+  <p class="lead">Поле боя и панели целиком помещаются только в горизонтальном положении.</p>
+  <button id="rotateOk">Играть так</button>
+</div></div>
 
 <div id="app">
   <header id="top">

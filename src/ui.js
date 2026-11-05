@@ -28,10 +28,42 @@ const portrait = k => `<img src="${spriteURL(k)}" alt="">`;
 let game, dirty = true, pick = null, hoverUnit = null;
 
 // ---------- размер ----------
+// низкий горизонтальный экран: панели стоят колонкой справа от поля (то же условие, что в index.html)
+const sideMQ = matchMedia('(orientation: landscape) and (max-height: 540px)');
+// верхняя панель всегда в одну строку: ужимаем ступенями, пока не влезет; не влезла и в самой узкой — переносим
+const TOP_LEVELS = ['', 'compact', 'tight'];
+let topLevel = '';
+function setTopTexts() {
+  const tight = topLevel === 'tight';
+  $('sound').textContent = tight ? '♪' : isMuted() ? 'Звук: выкл' : 'Звук: вкл';
+  $('sound').classList.toggle('on', !isMuted());
+  $('sound').classList.toggle('muted', tight && isMuted());
+  if (!game) return;
+  $('pause').textContent = game.paused ? (tight ? '▶' : 'Играть') : (tight ? '❚❚' : 'Пауза');
+  const next = $('next');
+  if (game.phase === 'break') next.textContent = tight ? `▸ +${C.EARLY_BONUS}` : topLevel ? `Сейчас +${C.EARLY_BONUS}` : `Вызвать сейчас ▸ +${C.EARLY_BONUS}`;
+  else if (game.phase === 'final') next.textContent = 'Последняя волна';
+  else next.textContent = 'Волна идёт';
+}
+function fitTop() {
+  const top = $('top'), body = document.body, h0 = top.offsetHeight;
+  body.classList.remove('wrap');
+  for (const lvl of TOP_LEVELS) { // ступени накапливаются: tight включает и compact
+    topLevel = lvl;
+    TOP_LEVELS.forEach((l, i) => l && body.classList.toggle(l, i <= TOP_LEVELS.indexOf(lvl)));
+    setTopTexts();
+    if (top.scrollWidth <= top.clientWidth + 1) break;
+    if (lvl === 'tight') body.classList.add('wrap');
+  }
+  if (top.offsetHeight !== h0) fit();
+}
+let fittedBottomH = 0;
 function fit() {
-  const top = $('top').offsetHeight, bottom = $('bottom').offsetHeight;
-  const availW = document.body.clientWidth - 32;
-  const availH = window.innerHeight - top - bottom - 34;
+  const top = $('top').offsetHeight, bottom = $('bottom');
+  fittedBottomH = bottom.offsetHeight;
+  const side = sideMQ.matches;
+  const availW = document.body.clientWidth - 32 - (side ? bottom.offsetWidth + 8 : 0);
+  const availH = window.innerHeight - top - (side ? 18 : bottom.offsetHeight + 34);
   // холст рисуется в реальном разрешении экрана — без размытия при растяжении
   const s = Math.max(0.3, Math.min(availW / C.W, availH / C.H));
   const cssW = Math.floor(C.W * s), cssH = Math.floor(C.H * s);
@@ -39,9 +71,17 @@ function fit() {
   cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
   cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
   if (game) { game.pxScale = cv.width / C.W; setPixelDensity(game.pxScale); }
-  $('app').style.maxWidth = Math.max(cssW, 680) + 'px';
+  $('app').style.maxWidth = side ? '' : Math.max(cssW, 680) + 'px';
 }
-window.addEventListener('resize', fit);
+window.addEventListener('resize', () => { fit(); if (game) fitTop(); });
+
+// вертикальный телефон: просим повернуть, а пока подсказка на экране — бой на паузе
+const portraitMQ = matchMedia('(orientation: portrait) and (max-width: 700px)');
+const rotateShown = () => portraitMQ.matches && !document.body.classList.contains('portrait-ok');
+portraitMQ.addEventListener('change', () => {
+  if (game && rotateShown() && game.phase !== 'prep' && game.phase !== 'over') { game.paused = true; dirty = true; }
+});
+$('rotateOk').onclick = () => { document.body.classList.add('portrait-ok'); fit(); fitTop(); };
 
 // ---------- панель постройки ----------
 function buildUnitButtons() {
@@ -56,8 +96,8 @@ function buildUnitButtons() {
     b.innerHTML = `<span class="key">${keyN}</span><div class="pic">${portrait(k)}</div><span class="name">${u.name}</span>` +
       `<span class="air ${u.air ? 'yes' : ''}">${u.air ? 'земля + воздух' : 'только земля'}</span><span class="cost">${icon('coin')}${u.cost}</span>`;
     b.querySelectorAll('canvas[data-icon]').forEach(paintIcon);
-    b.onmouseenter = () => { hoverUnit = k; dirty = true; };
-    b.onmouseleave = () => { hoverUnit = null; dirty = true; };
+    b.onpointerenter = ev => { if (ev.pointerType === 'mouse') { hoverUnit = k; dirty = true; } };
+    b.onpointerleave = () => { hoverUnit = null; dirty = true; };
     b.onclick = () => {
       const t = game.towers[game.selected];
       if (t && !t.unit) { game.build(t.i, k); pick = null; }
@@ -73,17 +113,14 @@ function refreshHud() {
   $('gold').textContent = Math.floor(game.gold);
   $('lives').textContent = `${Math.max(0, game.lives)}/${C.START_LIVES}`;
   const wi = game.waveIdx;
-  if (wi < 0) $('wave').innerHTML = `Волна <b>0/${C.WAVES.length}</b>`;
-  else $('wave').innerHTML = `Волна <b>${wi + 1}/${C.WAVES.length}</b><span class="wv-name"> · ${C.ENEMIES[C.WAVES[wi].type].name}</span>`;
+  const waveHtml = wi < 0 ? `<span class="wv-lbl">Волна </span><b>0/${C.WAVES.length}</b>`
+    : `<span class="wv-lbl">Волна </span><b>${wi + 1}/${C.WAVES.length}</b><span class="wv-name"> · ${C.ENEMIES[C.WAVES[wi].type].name}</span>`;
+  if ($('wave').dataset.html !== waveHtml) { $('wave').innerHTML = waveHtml; $('wave').dataset.html = waveHtml; }
   const next = $('next');
   next.disabled = !game.canCallWave() || game.phase === 'prep';
   refreshNextWave();
-  if (game.phase === 'break') next.textContent = innerWidth < 1150 ? `Сейчас +${C.EARLY_BONUS}` : `Вызвать сейчас ▸ +${C.EARLY_BONUS}`;
-  else if (game.phase === 'final') next.textContent = 'Последняя волна';
-  else next.textContent = 'Волна идёт';
   $('speed').textContent = '×' + game.speed;
   $('speed').classList.toggle('on', game.speed > 1);
-  $('pause').textContent = game.paused ? 'Играть' : 'Пауза';
   $('pause').classList.toggle('on', game.paused);
   $('manaFill').style.width = (game.mana / C.MANA_MAX * 100) + '%';
   $('manaNum').textContent = Math.floor(game.mana);
@@ -100,6 +137,7 @@ function refreshHud() {
     b.classList.toggle('on', pick === k);
   }
   refreshTowerPanel();
+  fitTop();
 }
 
 // анонс следующей волны: кто идёт, сколько, чем опасен и когда
@@ -188,7 +226,7 @@ document.querySelectorAll('.spell').forEach(b => b.onclick = () => {
 $('next').onclick = () => game.callWave();
 // звук: включается после первого действия игрока, выбор «выкл» запоминается
 try { setMuted(localStorage.getItem('td-muted') === '1'); } catch (e) { /* хранилище недоступно */ }
-function refreshSound() { $('sound').textContent = isMuted() ? 'Звук: выкл' : 'Звук: вкл'; $('sound').classList.toggle('on', !isMuted()); }
+function refreshSound() { setTopTexts(); }
 function toggleSound() {
   initAudio(); setMuted(!isMuted()); refreshSound();
   try { localStorage.setItem('td-muted', isMuted() ? '1' : '0'); } catch (e) { /* хранилище недоступно */ }
@@ -234,7 +272,7 @@ function showStart() {
       <li>6 волн, в каждой один вид врагов. Последним идёт тролль-вождь</li>
       <li>Мана копится сама: Метеор, Мороз и Ускорение справа внизу</li>
       <li>На 3 уровне каждый защитник получает особый навык</li>
-      <li>Клавиши: 1–4 — защитники, Q/W/E — заклинания, пробел — пауза, M — звук</li>
+      <li class="keys">Клавиши: 1–4 — защитники, Q/W/E — заклинания, пробел — пауза, M — звук</li>
     </ul>
     <button class="primary" id="go">В бой</button>
   </div>`;
@@ -306,6 +344,8 @@ loadAssets().then(() => {
   game.flame = flame;
   buildUnitButtons();
   fit();
+  // нижняя панель меняет высоту (выбрали башню, сменилась карточка) — поле подстраивается, чтобы ничего не вылезало за экран
+  new ResizeObserver(() => { if ($('bottom').offsetHeight !== fittedBottomH) requestAnimationFrame(fit); }).observe($('bottom'));
   showStart();
   if (autoplay) game.speed = +(params.get('speed') || 4);
   fit();
