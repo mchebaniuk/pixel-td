@@ -225,7 +225,7 @@ export class Game {
     e.d += e.def.speed * k * dt;
     e.anim += dt * k;
     const p = posAt(e.d);
-    if (p.dx) e.dir = p.dx;
+    if (p.dx && C.ENEMIES_TURN) e.dir = p.dx; // по умолчанию враг всегда лицом к замку
     turnTowards(e, e.dir, dt);
     e.x = p.x; e.y = p.y;
     if (e.d >= PATH_LEN) {
