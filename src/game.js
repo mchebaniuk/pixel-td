@@ -703,6 +703,7 @@ export class Game {
     const sw = e.h * 0.55;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     pxEllipse(ctx, e.x, e.y + 1, sw / 2, 2);
+    if (e.type === 'skeleton') drawRigOutline(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts, '#120e0a', 0.6); // тонкие кости — тёмный контур, чтобы не сливались с дорогой
     if (e.type === 'gargoyle') drawRigOutline(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts, '#b8d0ff', 0.32); // серый камень на серой дороге — светлый контур
     if (e.enraged) drawRigOutline(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts, '#ff3a2a', 0.55 + 0.3 * Math.sin(this.time * 9));
     const { w, h } = drawRig(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts);

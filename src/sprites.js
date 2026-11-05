@@ -11,7 +11,8 @@ const UNIT = SCALE * RES / ZOOM; // пикселей картинки на ло�
 export const PIX = 0.6;
 const RAW = ['bg_hd', 'bg_snow', 'foundation_hd']; // фон уже нарисован в нужном зерне
 const LIGHTEN = { gargoyle: 1.22 }; // тёмно-серую гаргулью чуть высветлить
-const NO_NIGHT = ['tower', 'gargoyle']; // без ночной тонировки: башня подогнана под замок, гаргулья должна быть видна на дороге
+// без ночной тонировки: башня подогнана под замок; гаргулья и тонкий серый скелет иначе теряются на серой дороге
+const NO_NIGHT = ['tower', 'gargoyle', 'skeleton'];
 
 const NAMES = ['bg_hd.jpg', 'bg_snow.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'cyclops_empty', 'lich', 'dragon',
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
@@ -139,7 +140,7 @@ export function drawAt(ctx, name, x, y, o = {}) {
   if (o.rot) ctx.rotate(o.rot);
   if (o.sx || o.sy) ctx.scale(o.sx || 1, o.sy || 1);
   if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingEnabled = false; // чёткий пиксельный край: со сглаживанием края смешиваются с фоном и тонкие фигуры (скелет) просвечивают
   ctx.drawImage(c, -w / 2, -h, w, h);
   ctx.restore();
   return { w, h };
@@ -168,12 +169,13 @@ export function drawRig(ctx, name, x, y, o, parts) {
   const flip = !!o.faceLeft !== !!FACES_LEFT[name];
   const c = sprite(name, o.faceLeft, o.tint || o.white);
   const { w, h } = dims[name];
+  const cell = c.width / imgs[name].width; // одна клетка сетки PIX в пикселях заготовки
   ctx.save();
   ctx.translate(x + (o.dx || 0) * (o.faceLeft ? -1 : 1), y + (o.dy || 0));
   if (o.rot) ctx.rotate(o.faceLeft ? -o.rot : o.rot);
   if (o.sx !== undefined && o.sx !== 1) ctx.scale(o.sx, 1); // сжатие по ширине — плавный разворот
   if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingEnabled = false; // чёткий пиксельный край: со сглаживанием края смешиваются с фоном и тонкие фигуры (скелет) просвечивают
   for (const p of parts) {
     let [x0, y0, x1, y1] = p.r;
     if (flip) [x0, x1] = [1 - x1, 1 - x0];
@@ -184,16 +186,20 @@ export function drawRig(ctx, name, x, y, o, parts) {
     // pivotX — край, за который часть «прикреплена» (для крыла — плечо); при отражении край меняется
     const anchor = flip ? { left: 'right', right: 'left' }[p.pivotX] : p.pivotX;
     const left = -w / 2 + x0 * w + (anchor === 'right' ? pw * (1 - sx) : 0);
+    // часть заходит на соседние на одну клетку: иначе по сглаженному краю куска в шов просвечивает фон
+    const sx0 = Math.max(0, x0 * c.width - cell), sx1 = Math.min(c.width, x1 * c.width + cell);
+    const sy0 = Math.max(0, y0 * c.height - cell), sy1 = Math.min(c.height, y1 * c.height + cell);
+    const kx = pw * sx / ((x1 - x0) * c.width), ky = ph * sy / ((y1 - y0) * c.height);
+    const dl = left + dx - (x0 * c.width - sx0) * kx, dt = top + (p.dy || 0) - (y0 * c.height - sy0) * ky;
+    const dw = (sx1 - sx0) * kx, dh = (sy1 - sy0) * ky;
     if (p.rot) { // часть поворачивается вокруг точки крепления p.at (доли картинки, как r), например рука — вокруг плеча
       const ax = -w / 2 + (flip ? 1 - p.at[0] : p.at[0]) * w + dx, ay = -h + p.at[1] * h + (p.dy || 0);
       ctx.save(); ctx.translate(ax, ay); ctx.rotate(o.faceLeft ? -p.rot : p.rot);
-      ctx.drawImage(c, x0 * c.width, y0 * c.height, (x1 - x0) * c.width, (y1 - y0) * c.height,
-        left + dx - ax, top + (p.dy || 0) - ay, pw * sx, ph * sy);
+      ctx.drawImage(c, sx0, sy0, sx1 - sx0, sy1 - sy0, dl - ax, dt - ay, dw, dh);
       ctx.restore();
       continue;
     }
-    ctx.drawImage(c, x0 * c.width, y0 * c.height, (x1 - x0) * c.width, (y1 - y0) * c.height,
-      left + dx, top + (p.dy || 0), pw * sx, ph * sy);
+    ctx.drawImage(c, sx0, sy0, sx1 - sx0, sy1 - sy0, dl, dt, dw, dh);
   }
   ctx.restore();
   return { w, h };
