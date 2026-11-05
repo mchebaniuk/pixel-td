@@ -10,6 +10,8 @@ const UNIT = SCALE * RES / ZOOM; // пикселей картинки на ло�
 // Персонажи и башня при загрузке ужимаются до этой сетки, поэтому всё на экране одного «зерна».
 export const PIX = 0.6;
 const RAW = ['bg_hd', 'foundation_hd']; // фон уже нарисован в нужном зерне
+const LIGHTEN = { gargoyle: 1.22 }; // тёмно-серую гаргулью чуть высветлить
+const NO_NIGHT = ['tower', 'gargoyle']; // без ночной тонировки: башня подогнана под замок, гаргулья должна быть видна на дороге
 
 const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'cyclops_empty', 'lich', 'dragon',
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
@@ -29,7 +31,8 @@ export function loadAssets() {
     i.onload = () => {
       dims[n] = { w: i.width / UNIT, h: i.height / UNIT };
       imgs[n] = RAW.includes(n) ? i : pixelate(i, Math.round(dims[n].w / PIX), Math.round(dims[n].h / PIX));
-      if (!RAW.includes(n) && n !== 'tower') nightGrade(imgs[n]);
+      if (!RAW.includes(n) && !NO_NIGHT.includes(n)) nightGrade(imgs[n]);
+      if (LIGHTEN[n]) lighten(imgs[n], LIGHTEN[n]);
       resolve();
     };
     i.onerror = () => reject(new Error(`Не загрузилась картинка assets/${file}`));
@@ -80,6 +83,12 @@ function nightGrade(c) {
     if (!p[i + 3]) continue;
     p[i] = p[i] * k * 0.95; p[i + 1] = p[i + 1] * k * 0.97; p[i + 2] = Math.min(255, p[i + 2] * k * 1.04);
   }
+  x.putImageData(d, 0, 0);
+}
+
+function lighten(c, k) {
+  const x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4) if (p[i + 3]) { p[i] = Math.min(255, p[i] * k); p[i + 1] = Math.min(255, p[i + 1] * k); p[i + 2] = Math.min(255, p[i + 2] * k * 1.04); }
   x.putImageData(d, 0, 0);
 }
 

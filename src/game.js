@@ -7,7 +7,7 @@ const LIFT = 18; // высота полёта гаргулий
 // места на фоне (логические координаты): пламя факелов и ворота замка
 const TORCHES = [[20, 86], [390, 109], [438, 140]];
 const GATE = { x: 424, y: 97, w: 20, h: 20 };
-const TURN_TIME = 0.2; // плавный разворот: фигура сжимается по ширине и раскрывается уже в другую сторону
+const TURN_TIME = C.ENEMY_TURN_TIME; // быстрый разворот: фигура сжимается по ширине и раскрывается уже в другую сторону
 // обновляет показанную сторону o.shown и таймер разворота o.turnT по желаемой стороне want
 function turnTowards(o, want, dt) {
   if (o.shown === undefined) o.shown = want;
@@ -225,7 +225,7 @@ export class Game {
     e.d += e.def.speed * k * dt;
     e.anim += dt * k;
     const p = posAt(e.d);
-    if (p.dx && C.ENEMIES_TURN) e.dir = p.dx; // по умолчанию враг всегда лицом к замку
+    if (p.dx && C.ENEMIES_TURN) e.dir = p.dx; // разворот на поворотах (выключается в config.js)
     turnTowards(e, e.dir, dt);
     e.x = p.x; e.y = p.y;
     if (e.d >= PATH_LEN) {
@@ -687,6 +687,7 @@ export class Game {
     const sw = e.h * 0.55;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     pxEllipse(ctx, e.x, e.y + 1, sw / 2, 2);
+    if (e.type === 'gargoyle') drawRigOutline(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts, '#b8d0ff', 0.32); // серый камень на серой дороге — светлый контур
     if (e.enraged) drawRigOutline(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts, '#ff3a2a', 0.55 + 0.3 * Math.sin(this.time * 9));
     const { w, h } = drawRig(ctx, e.type, e.x, e.y + 2 - lift, o, rig.parts);
     const top = e.y + 2 - lift - h + (o.dy || 0);
