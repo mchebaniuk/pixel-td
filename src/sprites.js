@@ -11,7 +11,7 @@ const UNIT = SCALE * RES / ZOOM; // пикселей картинки на ло�
 export const PIX = 0.6;
 const RAW = ['bg_hd', 'foundation_hd']; // фон уже нарисован в нужном зерне
 
-const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'lich', 'dragon',
+const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'cyclops_empty', 'lich', 'dragon',
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
 
 // в какую сторону смотрит персонаж на исходной картинке

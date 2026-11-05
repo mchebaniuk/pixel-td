@@ -359,6 +359,10 @@ export class Game {
         this.fx.flame(t.mouthX + Math.cos(a) * off, t.mouthY + Math.sin(a) * off, Math.cos(a) * v, Math.sin(a) * v);
       }
     }
+    if (t.rockEmpty && t.cd <= 0.55) { // циклоп подхватил новый валун — облачко пыли у рук
+      t.rockEmpty = false;
+      if (t.holdX !== undefined) this.fx.burst(t.holdX, t.holdY + 2, ['#8c7f68', '#a89a80', '#5e584e'], 6, 18, 0.35, 40);
+    }
     if (t.stunT > 0) { t.stunT -= dt; t.breath = 0; t.hasTarget = false; return; } // оглушён ударом тролля
     t.cd = Math.max(0, t.cd - dt * (this.hasteT > 0 ? C.SPELLS.haste.mult : 1));
     const target = this.inRange(t, s);
@@ -381,6 +385,7 @@ export class Game {
       const lead = posAt(target.d + target.def.speed * 0.6);
       this.sfx('throw');
       const cs = size('cyclops'); // валун срывается из ладоней (holdX/holdY считает cyclopsHands при отрисовке)
+      t.rockEmpty = true; // руки пустые, пока не подхватит следующий
       this.projectiles.push({ kind: 'rock', sx: t.holdX ?? t.x - t.face, sy: t.holdY ?? t.y - TOWER_TOP - cs.h - 3, gy0: t.y, spin: t.face, tx: lead.x, ty: lead.y - 3, t: 0, dur: 0.6, dmg: s.dmg,
         splash: s.splash * (t.level >= 3 ? s.perkSplash : 1), stun: s.stun * (t.level >= 3 ? s.perkStun : 1) });
     } else if (t.unit === 'lich') {
@@ -593,10 +598,12 @@ export class Game {
   // Концы лука и точка натяжения — в долях картинки (персонаж смотрит вправо)
   drawBowstring(t, top, o, partDy, windup, atk) {
     const ctx = this.ctx, { w, h } = size('archer'), f = t.face;
-    const pull = windup * windup * (3 - 2 * windup);
+    // на картинке лук уже натянут: в покое тетива у руки, после выстрела распрямляется и снова натягивается на замахе
+    const w0 = t.cd > 0.5 ? 0 : t.hasTarget ? windup : 1;
+    const pull = w0 * w0 * (3 - 2 * w0);
     const P = (fx, fy) => [-w / 2 + fx * w, -h + fy * h + partDy];
-    const tipT = P(0.667, 0.03), tipB = P(0.66, 0.72);
-    const rest = P(0.665, 0.375), drawn = P(0.46, 0.335);
+    const tipT = P(0.7, 0.06), tipB = P(0.7, 0.6); // тонкие кончики плеч лука при ужатии до сетки пропадают
+    const rest = P(0.7, 0.32), drawn = P(0.39, 0.315);
     const quiver = atk > 0 ? Math.sin(atk * 40) * atk * 0.9 : 0; // дрожание после спуска
     const nx = rest[0] + (drawn[0] - rest[0]) * pull + quiver, ny = rest[1] + (drawn[1] - rest[1]) * pull;
     ctx.save();
@@ -608,21 +615,11 @@ export class Game {
     ctx.restore();
   }
 
-  // Руки циклопа — настоящие, с картинки: поворачиваются вокруг плеча (drawRig, rot + at).
-  // Точки считаются в координатах фигуры (смотрит вправо), затем — наклон и отражение всей фигуры
-  armPoint(arm, fx, fy) {
-    const { w, h } = size('cyclops');
-    const ax = -w / 2 + arm.at[0] * w, ay = -h + arm.at[1] * h + (arm.dy || 0);
-    const vx = (fx - arm.at[0]) * w, vy = (fy - arm.at[1]) * h, c = Math.cos(arm.rot), s = Math.sin(arm.rot);
-    return [ax + vx * c - vy * s, ay + vx * s + vy * c];
-  }
-  // валун — между кулаками (у картинки кулаки внизу рук), чуть дальше по направлению рук; мировые координаты
+  // Валун в руках циклопа — часть картинки (центр в долях фигуры, смотрящей вправо). Отсюда он и вылетает:
+  // точка проходит тот же наклон и отражение, что и вся фигура; мировые координаты
   cyclopsHands(t, top, o, rig) {
-    const { near, far } = rig.arms;
-    const a = this.armPoint(near, 0.1, 0.62), b = this.armPoint(far, 0.9, 0.62);
-    const a0 = this.armPoint(near, near.at[0], near.at[1]);
-    const ang = Math.atan2(a[1] - a0[1], a[0] - a0[0]);
-    const lx = (a[0] + b[0]) / 2 + Math.cos(ang) * 3.2, ly = (a[1] + b[1]) / 2 + Math.sin(ang) * 3.2;
+    const { w, h } = size('cyclops');
+    const lx = -w / 2 + 0.72 * w, ly = -h + 0.444 * h + (rig.bodyDy || 0);
     const r = o.rot || 0, c = Math.cos(r), s = Math.sin(r), f = t.face < 0 ? -1 : 1;
     return { x: t.x + (o.dx || 0) * f + (lx * c - ly * s) * f, y: top + (o.dy || 0) + lx * s + ly * c };
   }
@@ -650,20 +647,17 @@ export class Game {
     const rig = unitRig(t.unit, this.time, atk, windup, t.i * 1.7);
     const o = { ...rig.o, faceLeft: t.face < 0 }; // защитники на башнях разворачиваются мгновенно
     if (t.unit === 'archer') this.drawBowstring(t, top, o, rig.parts[1].dy || 0, windup, atk);
+    const pic = t.unit === 'cyclops' && t.rockEmpty ? 'cyclops_empty' : t.unit; // после броска руки циклопа пустые
     const glow = LEVEL_GLOW[t.level];
-    if (glow) drawRigOutline(ctx, t.unit, t.x, top, o, rig.parts, glow[0], glow[1] * (0.75 + 0.25 * Math.sin(this.time * 3 + t.i)));
-    const { w, h } = drawRig(ctx, t.unit, t.x, top, o, rig.parts);
+    if (glow) drawRigOutline(ctx, pic, t.x, top, o, rig.parts, glow[0], glow[1] * (0.75 + 0.25 * Math.sin(this.time * 3 + t.i)));
+    const { w, h } = drawRig(ctx, pic, t.x, top, o, rig.parts);
     if (t.stunT > 0) { // оглушён ударом тролля: звёздочки над головой
       const a = this.time * 7;
       ctx.fillStyle = '#f3c843';
       for (let i = 0; i < 3; i++) cell(ctx, t.x + Math.cos(a + i * 2.1) * 6, top - h - 2 + Math.sin(a + i * 2.1) * 1.5, 2 * PIX, 2 * PIX);
     }
     const ry = top + (o.dy || 0);
-    if (t.unit === 'cyclops' && windup > 0 && !this.cyclopsHasBoulder) { // валун лежит в ладонях и поднимается вместе с руками
-      const hold = this.cyclopsHands(t, top, o, rig);
-      t.holdX = hold.x; t.holdY = hold.y;
-      drawBoulder(ctx, hold.x, hold.y, 0);
-    }
+    if (t.unit === 'cyclops') { const hold = this.cyclopsHands(t, top, o, rig); t.holdX = hold.x; t.holdY = hold.y; }
     if (t.unit === 'lich') { // свечение солнечной сферы на посохе жреца
       const glow = 0.35 + 0.25 * Math.sin(this.time * 4 + t.i) + atk * 0.6;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, glow);
