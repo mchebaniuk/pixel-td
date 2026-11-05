@@ -1,12 +1,10 @@
 import * as C from './config.js';
 import { drawAt, drawRig, drawRigOutline, spritePixels, size, SCALE, PIX } from './sprites.js';
 import { unitRig, enemyRig } from './anim.js';
-import { PATH_LEN, posAt, SLOTS, renderBackground, drawTower, drawSlot, TOWER_TOP } from './map.js';
+import { PATH_LEN, posAt, SLOTS, TORCHES, GATE, LEVEL, setLevel, renderBackground, drawTower, drawSlot, TOWER_TOP } from './map.js';
 
 const LIFT = 18; // высота полёта гаргулий
-// места на фоне (логические координаты): пламя факелов и ворота замка
-const TORCHES = [[20, 86], [390, 109], [438, 140]];
-const GATE = { x: 424, y: 97, w: 20, h: 20 };
+// пламя факелов TORCHES и ворота замка GATE — свои у каждой локации (map.js)
 const TURN_TIME = C.ENEMY_TURN_TIME; // быстрый разворот: фигура сжимается по ширине и раскрывается уже в другую сторону
 // обновляет показанную сторону o.shown и таймер разворота o.turnT по желаемой стороне want
 function turnTowards(o, want, dt) {
@@ -35,6 +33,13 @@ export class Game {
     this.reset();
   }
 
+  // смена локации: свой фон, маршрут, места башен, факелы и ворота; игра начинается заново
+  setLevel(i) {
+    setLevel(i);
+    this.bg = renderBackground(); this.bgScaled = null;
+    this.reset();
+  }
+
   reset() {
     this.gold = C.START_GOLD;
     this.lives = C.START_LIVES;
@@ -45,7 +50,9 @@ export class Game {
     this.enemies = []; this.projectiles = []; this.meteors = []; this.corpses = [];
     this.burns = []; this.shocks = []; this.cracks = []; this.gateHit = 0;
     // светлячки над травой: медленно кружат и мерцают
-    this.flies = Array.from({ length: 18 }, () => ({ x: 20 + Math.random() * 380, y: 95 + Math.random() * 135, ph: Math.random() * 7, sp: 0.4 + Math.random() * 0.6 }));
+    this.flies = LEVEL.weather === 'flies' ? Array.from({ length: 18 }, () => ({ x: 20 + Math.random() * 380, y: 95 + Math.random() * 135, ph: Math.random() * 7, sp: 0.4 + Math.random() * 0.6 })) : [];
+    // снегопад на перевале: хлопья медленно падают и покачиваются
+    this.flakes = LEVEL.weather === 'snow' ? Array.from({ length: 70 }, () => ({ x: Math.random() * 480, y: Math.random() * 245, vy: 6 + Math.random() * 9, ph: Math.random() * 7, big: Math.random() < 0.25 })) : [];
     this.towers = SLOTS.map(([x, y], i) => ({ i, x, y, unit: null, level: 0, cd: 0, invested: 0, face: -1, anim: 0 })); // защитники смотрят влево — навстречу врагам
     this.fx = new FX();
     this.time = 0; this.playTime = 0; this.kills = 0;
@@ -159,6 +166,11 @@ export class Game {
     for (const s of this.shocks) s.t += dt;
     this.shocks = this.shocks.filter(s => s.t < 0.5);
     for (const f of this.flies) { f.ph += dt * f.sp; f.x += Math.cos(f.ph * 0.7) * dt * 4; f.y += Math.sin(f.ph) * dt * 3; }
+    for (const f of this.flakes) {
+      f.ph += dt; f.y += f.vy * dt; f.x += (Math.sin(f.ph * 1.3) * 3 - 2) * dt;
+      if (f.y > 245) { f.y = -4; f.x = Math.random() * 500; }
+      if (f.x < -4) f.x += 488;
+    }
     this.gateHit = Math.max(0, this.gateHit - dt);
     this.fx.update(dt);
 
@@ -586,6 +598,10 @@ export class Game {
       ctx.fillStyle = 'rgba(255,150,40,0.85)'; cell(ctx, x - 1.2 + Math.sin(t * 1.9 + i) * 0.6, y - h, 2.4, h);
       ctx.fillStyle = 'rgba(255,236,150,0.9)'; cell(ctx, x - 0.6, y - h * 0.55, 1.2, h * 0.55);
     });
+    for (const f of this.flakes) {
+      ctx.fillStyle = f.big ? 'rgba(240,246,255,0.85)' : 'rgba(220,232,255,0.6)';
+      cell(ctx, f.x, f.y, f.big ? 2 * PIX : PIX, f.big ? 2 * PIX : PIX);
+    }
     for (const f of this.flies) {
       const blink = Math.sin(f.ph * 3);
       if (blink < 0.2) continue;

@@ -9,11 +9,11 @@ const UNIT = SCALE * RES / ZOOM; // пикселей картинки на ло�
 // Размер одного «пикселя» арта в логических единицах — такой же, как у нарисованного фона.
 // Персонажи и башня при загрузке ужимаются до этой сетки, поэтому всё на экране одного «зерна».
 export const PIX = 0.6;
-const RAW = ['bg_hd', 'foundation_hd']; // фон уже нарисован в нужном зерне
+const RAW = ['bg_hd', 'bg_snow', 'foundation_hd']; // фон уже нарисован в нужном зерне
 const LIGHTEN = { gargoyle: 1.22 }; // тёмно-серую гаргулью чуть высветлить
 const NO_NIGHT = ['tower', 'gargoyle']; // без ночной тонировки: башня подогнана под замок, гаргулья должна быть видна на дороге
 
-const NAMES = ['bg_hd.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'cyclops_empty', 'lich', 'dragon',
+const NAMES = ['bg_hd.jpg', 'bg_snow.jpg', 'foundation_hd', 'tower', 'archer', 'cyclops', 'cyclops_empty', 'lich', 'dragon',
   'skeleton', 'goblin', 'wolf', 'gargoyle', 'orc', 'troll'];
 
 // в какую сторону смотрит персонаж на исходной картинке

@@ -1,5 +1,6 @@
 import * as C from './config.js';
 import { Game } from './game.js';
+import { LEVELS } from './map.js';
 import { loadAssets, setPixelDensity, spriteURL } from './sprites.js';
 import { initAudio, sfx, flame, setMuted, isMuted, setMusicMood } from './audio.js';
 
@@ -278,13 +279,36 @@ function showBanner(d) {
   setTimeout(() => b.remove(), 3100);
 }
 
+// ---------- локации: выбранная и лучшие звёзды хранятся в браузере ----------
+const store = {
+  get(k, def) { try { const v = localStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch (e) { return def; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* хранилище недоступно */ } },
+};
+let levelIdx = Math.min(LEVELS.length - 1, Math.max(0, store.get('td-level', 0) | 0));
+const bestStars = () => store.get('td-best', {});
+const starRow = n => [1, 2, 3].map(i => `<span class="${i <= n ? 'on' : ''}">★</span>`).join('');
+function levelPicker() {
+  const best = bestStars();
+  return `<div class="levels">${LEVELS.map((l, i) => `<button class="lvl-card${i === levelIdx ? ' on' : ''}" data-level="${i}">
+      <img src="assets/${l.bg}.jpg" alt=""><span class="lvl-name">${l.name}</span><span class="lvl-stars">${starRow(best[l.id] || 0)}</span></button>`).join('')}</div>`;
+}
+function bindLevelPicker() {
+  overlay.querySelectorAll('.lvl-card').forEach(b => b.onclick = () => {
+    levelIdx = +b.dataset.level; store.set('td-level', levelIdx);
+    overlay.querySelectorAll('.lvl-card').forEach(x => x.classList.toggle('on', x === b));
+    game.setLevel(levelIdx); dirty = true;
+  });
+}
+
 // ---------- экраны ----------
 function showStart() {
   overlay.hidden = false;
+  if (game.levelShown !== levelIdx) { game.setLevel(levelIdx); game.levelShown = levelIdx; }
   overlay.innerHTML = `<div class="card frame">
     <h1>Стражи Рубежа</h1>
-    <p class="lead">Орда идёт к замку по лесной дороге. Вдоль неё стоят каменные башни — посади на них защитников.</p>
+    <p class="lead">Орда идёт к замку. Вдоль дороги стоят каменные башни — посади на них защитников.</p>
     <div class="roster">${C.UNIT_ORDER.map(portrait).join('')}</div>
+    ${levelPicker()}
     <ul>
       <li>Нажми на пустую башню с золотым плюсом, затем выбери защитника в панели «Постройка»</li>
       <li>Нажми на башню с защитником, чтобы улучшить или отпустить его за золото</li>
@@ -295,6 +319,7 @@ function showStart() {
     </ul>
     <button class="primary" id="go">В бой</button>
   </div>`;
+  bindLevelPicker();
   $('go').onclick = () => { overlay.hidden = true; game.phase = 'break'; game.breakT = 20; dirty = true; };
 }
 function showEnd(r) {
@@ -302,16 +327,19 @@ function showEnd(r) {
   stage.querySelector('#banner')?.remove(); // табличка волны не должна просвечивать за итогами
   const mm = Math.floor(r.time / 60), ss = String(Math.floor(r.time % 60)).padStart(2, '0');
   const stars = !r.win ? 0 : r.lives >= C.START_LIVES - 3 ? 3 : r.lives >= C.START_LIVES / 2 ? 2 : 1;
+  const lvl = LEVELS[levelIdx], best = bestStars();
+  if (stars > (best[lvl.id] || 0)) { best[lvl.id] = stars; store.set('td-best', best); }
   overlay.hidden = false;
   overlay.innerHTML = `<div class="card frame">
     <h1 class="${r.win ? '' : 'lose'}">${r.win ? 'Замок выстоял!' : 'Замок пал'}</h1>
     <p class="lead">${r.win ? (r.bossLeaked ? 'Тролль проломил ворота, но стены устояли. Попробуй сразить его до ворот.' : 'Тролль-вождь повержен, орда отступает.') : 'Орда прорвалась через ворота. Попробуй другую расстановку.'}</p>
     <div class="stars" aria-label="Оценка: ${stars} из 3">${[1, 2, 3].map(i => `<span class="${i <= stars ? 'on' : ''}">★</span>`).join('')}</div>
-    <ul><li>Время боя: ${mm}:${ss}</li><li>Врагов повержено: ${r.kills}</li><li>Жизней замка осталось: ${r.lives}</li>
+    <ul><li>Локация: ${lvl.name}</li><li>Время боя: ${mm}:${ss}</li><li>Врагов повержено: ${r.kills}</li><li>Жизней замка осталось: ${r.lives}</li>
       <li>${stars === 3 ? 'Идеальная оборона!' : r.win ? 'Сохрани больше жизней замка, чтобы получить все звёзды' : 'Звёзды дают только за победу'}</li></ul>
-    <button class="primary" id="again">Играть снова</button>
+    <div class="row end-row"><button class="primary" id="again">Играть снова</button><button id="levels">Выбрать локацию</button></div>
   </div>`;
-  $('again').onclick = () => { game.reset(); showStart(); };
+  $('again').onclick = () => { game.reset(); overlay.hidden = true; game.phase = 'break'; game.breakT = 20; dirty = true; };
+  $('levels').onclick = () => { game.reset(); showStart(); };
 }
 
 // ---------- автоигра для проверки: ?autoplay&speed=8 ----------
@@ -361,6 +389,7 @@ loadAssets().then(() => {
   window.__game = game;
   game.sfx = sfx;
   game.flame = flame;
+  if (params.has('level')) { const i = LEVELS.findIndex(l => l.id === params.get('level')); if (i >= 0) levelIdx = i; }
   buildUnitButtons();
   fit();
   // нижняя панель меняет высоту (выбрали башню, сменилась карточка) — поле подстраивается, чтобы ничего не вылезало за экран
