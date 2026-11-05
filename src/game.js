@@ -102,7 +102,7 @@ export class Game {
     const w = C.WAVES[this.waveIdx];
     this.spawnLeft = w.count; this.spawnT = 0; this.phase = 'spawning'; this.waveCleared = false;
     this.sfx(C.ENEMIES[w.type].boss ? 'boss' : 'wave');
-    this.emit('wave', { idx: this.waveIdx, name: C.ENEMIES[w.type].name, count: w.count, boss: C.ENEMIES[w.type].boss });
+    this.emit('wave', { idx: this.waveIdx, type: w.type, name: C.ENEMIES[w.type].name, count: w.count, boss: C.ENEMIES[w.type].boss });
     this.emit('change');
   }
 
@@ -194,7 +194,7 @@ export class Game {
         if (!this.waveCleared && this.waveIdx >= 0) { // волна отбита — один раз сообщаем интерфейсу (до первой волны — нечего отбивать)
           this.waveCleared = true;
           this.sfx('cleared');
-          this.emit('cleared', { idx: this.waveIdx, type: C.WAVES[this.waveIdx + 1].type, next: C.ENEMIES[C.WAVES[this.waveIdx + 1].type].name, wait: C.WAVE_BREAK });
+          this.emit('cleared', { idx: this.waveIdx, type: C.WAVES[this.waveIdx + 1].type, next: C.ENEMIES[C.WAVES[this.waveIdx + 1].type].name, count: C.WAVES[this.waveIdx + 1].count, wait: C.WAVE_BREAK });
         }
         this.breakT -= dt;
       } else this.breakT = C.WAVE_BREAK;

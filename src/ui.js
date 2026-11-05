@@ -148,14 +148,20 @@ const TRAITS = { // короткая метка, класс цвета, полн
   regen: ['✚ лечится', 'regen', 'Восстанавливает здоровье'],
   boss: ['☠ босс', 'boss', 'Босс: бьёт по башням и звереет при половине здоровья'],
 };
-function refreshNextWave() {
-  const box = $('nextwave'), n = C.WAVES[game.waveIdx + 1];
-  if (!n || game.phase === 'over') { box.hidden = true; return; }
-  const e = C.ENEMIES[n.type], tags = [];
+function traitList(e) {
+  const tags = [];
   if (e.flying) tags.push(TRAITS.flying);
   if (e.armor >= 0.3) tags.push(TRAITS.armor);
   if (e.speed >= 35) tags.push(TRAITS.fast);
   if (e.boss) tags.push(TRAITS.boss); else if (e.regen) tags.push(TRAITS.regen);
+  return tags;
+}
+// в баннере босса метка «босс» уже есть в подписи — фишку не повторяем
+const traitTags = e => traitList(e).filter(([, c]) => c !== 'boss').map(([t, c, tip]) => `<span class="nw-tag ${c}" title="${tip}">${t}</span>`).join('');
+function refreshNextWave() {
+  const box = $('nextwave'), n = C.WAVES[game.waveIdx + 1];
+  if (!n || game.phase === 'over') { box.hidden = true; return; }
+  const e = C.ENEMIES[n.type], tags = traitList(e);
   const counting = game.phase === 'break' && game.enemies.length === 0;
   const when = game.phase === 'prep' ? '' : counting ? `<span class="nw-time">${Math.ceil(game.breakT)} с</span>` : '<span class="nw-wait">следом</span>';
   const html = `<span class="nw-pic">${portrait(n.type)}</span><span class="nw-text"><span class="nw-lbl">Далее</span>` +
@@ -251,12 +257,25 @@ window.addEventListener('keydown', ev => {
 function showBanner(d) {
   const old = stage.querySelector('#banner'); if (old) old.remove();
   const b = document.createElement('div');
-  b.id = 'banner'; if (d.boss) b.className = 'boss'; if (d.cleared) b.className = 'ok';
-  b.innerHTML = d.cleared ? `Волна ${d.idx + 1} отбита!<small>Дальше <span class="bn-pic">${portrait(d.type)}</span><b>${d.next}</b><span class="bn-time">${d.wait} с</span></small>`
-    : d.rage ? 'Тролль в ярости!<small>Он ускорился — добивай его</small>'
-    : `Волна ${d.idx + 1}: ${d.name}<small>${d.boss ? 'Босс идёт к замку!' : 'Отряд ×' + d.count + ' идёт колонной'}</small>`;
+  b.id = 'banner'; b.className = d.cleared ? 'ok' : d.rage ? 'rage' : d.boss ? 'boss' : '';
+  const pic = k => `<span class="bn-pic">${portrait(k)}</span>`;
+  const of = `${C.WAVES.length}`;
+  if (d.cleared) {
+    b.innerHTML = `<div class="bn-title">Волна ${d.idx + 1} отбита!</div>
+      <div class="bn-next">${pic(d.type)}<div class="bn-body"><span class="bn-lbl">Дальше · волна ${d.idx + 2} из ${of}</span>
+        <span class="bn-name">${d.next}${d.count > 1 ? ` <span class="nw-count">×${d.count}</span>` : ''}</span>
+        <span class="bn-sub">${traitTags(C.ENEMIES[d.type])}</span></div><span class="bn-time">${d.wait} с</span></div>`;
+  } else if (d.rage) {
+    b.innerHTML = `${pic('troll')}<div class="bn-body"><span class="bn-lbl">Босс</span><span class="bn-title">Тролль в ярости!</span>
+      <span class="bn-sub">Он ускорился — добивай его</span></div>`;
+  } else {
+    const e = C.ENEMIES[d.type];
+    b.innerHTML = `${pic(d.type)}<div class="bn-body"><span class="bn-lbl">${d.boss ? 'Последняя волна · босс' : `Волна ${d.idx + 1} из ${of}`}</span>
+      <span class="bn-title">${d.name}</span>
+      <span class="bn-sub">${d.boss ? 'Идёт к замку — готовь заклинания' : `<span class="num">×${d.count}</span> идут колонной`}${traitTags(e)}</span></div>`;
+  }
   stage.append(b);
-  setTimeout(() => b.remove(), 2500);
+  setTimeout(() => b.remove(), 3100);
 }
 
 // ---------- экраны ----------

@@ -60,13 +60,13 @@
   #nextwave .nw-lbl { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   #nextwave .nw-name { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
   #nextwave .nw-count { font-family: var(--pixel); font-size: 9px; color: var(--gold); }
-  #nextwave .nw-tag { font-size: 11px; font-weight: 700; line-height: 1; padding: 4px 7px; border-radius: 10px; white-space: nowrap;
+  .nw-tag { font-size: 11px; font-weight: 700; line-height: 1; padding: 4px 7px; border-radius: 10px; white-space: nowrap;
     background: #1a2030; color: var(--ink); box-shadow: inset 0 0 0 1px #3b4563; cursor: help; }
-  #nextwave .nw-tag.air { color: #9fd0ff; box-shadow: inset 0 0 0 1px #2e5a8a; background: #15233a; }
-  #nextwave .nw-tag.armor { color: #d6dbe6; box-shadow: inset 0 0 0 1px #5a6378; background: #222836; }
-  #nextwave .nw-tag.fast { color: #ffd68a; box-shadow: inset 0 0 0 1px #6a5422; background: #2a2414; }
-  #nextwave .nw-tag.regen { color: #a8f07a; box-shadow: inset 0 0 0 1px #3a6a2a; background: #16261a; }
-  #nextwave .nw-tag.boss { color: #ffb0a0; box-shadow: inset 0 0 0 1px #8a2a22; background: #2e1412; }
+  .nw-tag.air { color: #9fd0ff; box-shadow: inset 0 0 0 1px #2e5a8a; background: #15233a; }
+  .nw-tag.armor { color: #d6dbe6; box-shadow: inset 0 0 0 1px #5a6378; background: #222836; }
+  .nw-tag.fast { color: #ffd68a; box-shadow: inset 0 0 0 1px #6a5422; background: #2a2414; }
+  .nw-tag.regen { color: #a8f07a; box-shadow: inset 0 0 0 1px #3a6a2a; background: #16261a; }
+  .nw-tag.boss { color: #ffb0a0; box-shadow: inset 0 0 0 1px #8a2a22; background: #2e1412; }
   #nextwave .nw-time { font-family: var(--pixel); font-size: 10px; color: #1a1206; background: var(--gold); padding: 4px 6px; border-radius: 3px; box-shadow: inset 0 -2px 0 #9a6b1c; }
   #nextwave .nw-wait { font-size: 11px; font-weight: 500; color: var(--muted); }
   .unit, .spell { position: relative; }
@@ -165,32 +165,41 @@
   #mana .fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(180deg, #7fb6ff, #3a78d6); box-shadow: inset 0 2px 0 rgba(255,255,255,0.35); transition: width 0.2s; }
   #manaNum { min-width: 26px; text-align: right; font-family: var(--pixel); font-size: 10px; }
 
-  /* баннер волны */
+  /* баннер волны: карточка с портретом врага, подписью «Волна N из 6», крупным именем и особенностями */
   #banner {
-    position: absolute; left: 50%; top: 11%; transform: translateX(-50%); z-index: 4; pointer-events: none;
-    padding: 12px 38px 12px; line-height: 1.25; text-align: center; white-space: nowrap; max-width: calc(100% - 24px); box-sizing: border-box;
-    background: linear-gradient(180deg, rgba(34,28,20,0.94), rgba(14,12,10,0.94));
-    border: 3px solid #b8862a; border-radius: 4px;
-    box-shadow: 0 0 0 2px var(--wood-dk), inset 0 0 0 2px #4e3119, inset 0 2px 0 3px rgba(255,220,130,0.12), 0 8px 24px rgba(0,0,0,0.55);
-    font-family: var(--pixel); font-size: clamp(16px, 2.2vw, 26px); letter-spacing: 0.04em;
-    color: #ffd65a; text-shadow: 0 3px 0 #6a3e0c, 2px 2px 0 #2a170a, -2px -2px 0 #2a170a, 2px -2px 0 #2a170a, -2px 2px 0 #2a170a;
-    animation: bannerIn 2.6s cubic-bezier(.2,.9,.3,1.2) forwards;
+    --acc: #ffd65a; --acc-dk: #6a3e0c; --edge: #b8862a;
+    position: absolute; left: 50%; top: 9%; transform: translateX(-50%); z-index: 4; pointer-events: none;
+    display: flex; align-items: center; gap: 16px; padding: 12px 26px 12px 12px; box-sizing: border-box; max-width: calc(100% - 24px);
+    background: linear-gradient(180deg, rgba(36,30,22,0.97), rgba(16,13,10,0.97));
+    border: 3px solid var(--edge); border-radius: 4px; white-space: nowrap; line-height: 1.2;
+    box-shadow: 0 0 0 2px var(--wood-dk), inset 0 0 0 2px #4e3119, inset 0 2px 0 3px rgba(255,220,130,0.1), 0 10px 28px rgba(0,0,0,0.6);
+    animation: bannerIn 3.2s cubic-bezier(.2,.9,.3,1.2) forwards;
   }
-  /* золотые ромбы-орнаменты по бокам надписи */
-  #banner::before, #banner::after { content: ''; position: absolute; top: 50%; width: 10px; height: 10px; margin-top: -5px;
-    background: #ffd65a; transform: rotate(45deg); box-shadow: 0 0 0 2px #2a170a, 0 0 10px rgba(255,214,90,0.6); }
-  #banner::before { left: 12px; } #banner::after { right: 12px; }
-  #banner small { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; font-family: var(--font); font-size: 15px; font-weight: 500;
-    letter-spacing: 0.02em; color: var(--ink); text-shadow: 1px 1px 0 #000; white-space: nowrap; }
-  #banner small .bn-pic { width: 26px; height: 26px; display: grid; place-items: end center; overflow: hidden; border-radius: 3px;
-    background: radial-gradient(ellipse at 50% 70%, #3a4668 0%, #161b29 75%); border: 2px solid #0e1119; }
-  #banner small .bn-pic img { height: 24px; max-width: 24px; object-fit: contain; image-rendering: pixelated; }
-  #banner small b { color: #fff3c8; font-weight: 700; }
-  #banner small .bn-time { font-family: var(--pixel); font-size: 10px; color: #1a1206; background: var(--gold); padding: 3px 6px; border-radius: 3px; text-shadow: none; box-shadow: inset 0 -2px 0 #9a6b1c; }
-  #banner.boss { color: #ff7a5a; border-color: #c0473b; text-shadow: 0 3px 0 #5a1610, 2px 2px 0 #1a0806, -2px -2px 0 #1a0806, 2px -2px 0 #1a0806, -2px 2px 0 #1a0806; }
-  #banner.boss::before, #banner.boss::after { background: #ff7a5a; box-shadow: 0 0 0 2px #1a0806, 0 0 10px rgba(255,90,60,0.7); }
-  #banner.ok { color: #a8f07a; border-color: #5aa84a; text-shadow: 0 3px 0 #1f5a14, 2px 2px 0 #0a1a06, -2px -2px 0 #0a1a06, 2px -2px 0 #0a1a06, -2px 2px 0 #0a1a06; }
-  #banner.ok::before, #banner.ok::after { background: #a8f07a; box-shadow: 0 0 0 2px #0a1a06, 0 0 10px rgba(150,240,110,0.6); }
+  #banner.boss, #banner.rage { --acc: #ff7a5a; --acc-dk: #5a1610; --edge: #c0473b; }
+  #banner.ok { --acc: #a8f07a; --acc-dk: #1f5a14; --edge: #5aa84a; }
+  #banner.ok { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 18px 14px; }
+  /* портрет врага — как в нижней панели, только крупнее */
+  .bn-pic { flex: none; width: 80px; height: 80px; display: grid; place-items: end center; overflow: hidden; border-radius: 3px;
+    background: radial-gradient(ellipse at 50% 72%, #46557e 0%, #1a2033 72%); border: 2px solid #0e1119;
+    box-shadow: 0 0 0 2px var(--edge), inset 0 0 0 1px #5a6688, inset 0 -10px 14px rgba(0,0,0,0.45); }
+  .bn-pic img { height: 74px; max-width: 76px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.7)); }
+  .bn-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .bn-lbl { font-family: var(--font); font-size: 14px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--acc); opacity: 0.85;
+    text-shadow: 1px 1px 0 #000; }
+  .bn-title { font-family: var(--pixel); font-size: clamp(17px, 2.2vw, 28px); letter-spacing: 0.03em; color: var(--acc);
+    text-shadow: 0 3px 0 var(--acc-dk), 2px 0 0 #120c06, -2px 0 0 #120c06, 0 2px 0 #120c06, 0 -2px 0 #120c06; }
+  #banner.ok .bn-title { text-align: center; }
+  .bn-sub { display: flex; align-items: center; gap: 8px; font-family: var(--font); font-size: 17px; font-weight: 600; color: #f6eedb; text-shadow: 1px 1px 0 #000; }
+  .bn-sub .num { font-family: var(--pixel); font-size: 13px; color: var(--gold); }
+  .bn-sub .nw-tag { font-size: 12px; text-shadow: none; }
+  /* «волна отбита»: ниже заголовка — кто идёт дальше, с крупным портретом */
+  .bn-next { display: flex; align-items: center; gap: 14px; padding: 8px 10px; border-radius: 3px; background: rgba(0,0,0,0.32); box-shadow: inset 0 0 0 1px rgba(168,240,122,0.18); }
+  .bn-next .bn-pic { --edge: #8a6a2a; }
+  .bn-next .bn-name { font-family: var(--font); font-size: 22px; font-weight: 700; color: #fff3c8; text-shadow: 1px 1px 0 #000; }
+  .bn-next .nw-count { font-family: var(--pixel); font-size: 13px; color: var(--gold); }
+  .bn-next .bn-lbl { color: var(--muted); opacity: 1; letter-spacing: 0.12em; font-size: 12px; }
+  .bn-time { margin-left: auto; align-self: center; font-family: var(--pixel); font-size: 13px; color: #1a1206; background: var(--gold); padding: 6px 8px; border-radius: 3px;
+    text-shadow: none; box-shadow: inset 0 -3px 0 #9a6b1c; }
   @keyframes bannerIn {
     0% { opacity: 0; transform: translate(-50%, -14px) scale(0.7); }
     10% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
@@ -264,9 +273,12 @@
     #info .lvl { font-size: 11px; }
     #info .stats { gap: 0 8px; }
     .row button { min-height: 30px; font-size: 10.5px; padding: 2px 3px; white-space: nowrap; overflow: hidden; }
-    #banner { font-size: 13px; padding: 6px 26px; top: 6%; }
-    #banner small { font-size: 11px; margin-top: 4px; }
-    #banner::before { left: 8px; } #banner::after { right: 8px; }
+    #banner { top: 5%; gap: 10px; padding: 6px 14px 6px 6px; }
+    #banner.ok { gap: 6px; padding: 6px 10px 8px; }
+    .bn-pic { width: 42px; height: 42px; } .bn-pic img { height: 38px; max-width: 40px; }
+    .bn-body { gap: 3px; } .bn-lbl { font-size: 10px; } .bn-title { font-size: 13px; }
+    .bn-sub { font-size: 12px; gap: 6px; } .bn-sub .nw-tag { display: none; }
+    .bn-next { gap: 8px; padding: 4px 6px; } .bn-next .bn-name { font-size: 14px; } .bn-time { font-size: 10px; padding: 4px 6px; }
     .spells { gap: 4px; }
     .spell { flex: 1 1 0; width: auto; max-width: none; height: 40px; padding: 2px; }
     .spell canvas { width: 22px; height: 22px; margin: 0; }
